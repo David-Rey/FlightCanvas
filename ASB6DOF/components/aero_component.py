@@ -104,8 +104,9 @@ class AeroComponent(ABC):
             M_b[2] = -M_b[2]
 
         lever_arm = self.xyz_ref - com
-        M_b_cross = np.cross(lever_arm, F_b)
+        M_b_cross = np.cross(-lever_arm, F_b)
         M_b_total = M_b + M_b_cross
+        #M_b_total = M_b_cross
         return F_b, M_b_total
 
     def init_buildup_manager(self, vehicle_path):

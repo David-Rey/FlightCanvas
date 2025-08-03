@@ -76,12 +76,12 @@ if __name__ == '__main__':
 
     aero_vehicle = AeroVehicle(
         name="David's Glider",
-        xyz_ref=[0.05, 0, 0],  # Vehicle's Center of Gravity
+        xyz_ref=[0.15, 0, 0],  # Vehicle's Center of Gravity
         components=all_components
     )
 
-    #aero_vehicle.compute_buildup()
-    #aero_vehicle.save_buildup()
+    aero_vehicle.compute_buildup()
+    aero_vehicle.save_buildup()
     #aero_vehicle.save_buildup_fig()
     aero_vehicle.load_buildup()
     #aero_vehicle.compute_forces_and_moments_lookup(quat, vel, omega)
@@ -90,19 +90,12 @@ if __name__ == '__main__':
     #                         np.deg2rad([0, 30]))
     #aero_vehicle.test_remove_me()
 
-    t_arr, x_arr = aero_vehicle.run_sim(20)
+    t_arr, x_arr = aero_vehicle.run_sim(40)
 
-    '''
-    plt.figure()
-    plt.plot(t_arr, x_arr[2])
-
-    plt.figure()
-    plt.plot(t_arr, x_arr[-2])
-    plt.show()
-    '''
 
     # Visualize the Vehicle
     aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
+    #aero_vehicle.init_debug()
     #aero_vehicle.init_debug()
 
     aero_vehicle.animate(t_arr, x_arr)

@@ -110,7 +110,7 @@ class AeroVehicle:
 
     def run_sim(self, tf):
         # Initial state
-        pos_0 = np.array([0, 0, 350])  # Initial position
+        pos_0 = np.array([0, 0, 850])  # Initial position
         vel_0 = np.array([25, 0, -2])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
@@ -138,6 +138,7 @@ class AeroVehicle:
 
         # Gravity in the inertial frame
         g = np.array([0, 0, -9.81])
+        #g = np.array([0, 0, 0])
 
         # Forces and moments (in the body frame)
         F_B, M_B = self.compute_forces_and_moments_lookup(quat, vel_I, omega_B, self.xyz_ref)
@@ -247,8 +248,8 @@ class AeroVehicle:
         grid = pv.Plane(
             center=(0, 0, 0),  # Center of the plane
             direction=(0, 0, 1),  # Normal vector, perpendicular to the XY plane
-            i_size=1000,  # Width of the grid in X direction
-            j_size=1000,  # Height of the grid in Y direction
+            i_size=2000,  # Width of the grid in X direction
+            j_size=2000,  # Height of the grid in Y direction
             i_resolution=20,  # Number of subdivisions along X
             j_resolution=20  # Number of subdivisions along Y
         )
