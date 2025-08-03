@@ -113,7 +113,7 @@ class AeroVehicle:
         pos_0 = np.array([0, 0, 350])  # Initial position
         vel_0 = np.array([25, 0, -2])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
-        omega_0 = np.array([0, 0, 0.01])  # Initial angular velocity
+        omega_0 = np.array([0, 0, 0])  # Initial angular velocity
 
         state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
 
