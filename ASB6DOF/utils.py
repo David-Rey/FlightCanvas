@@ -413,6 +413,13 @@ def omega(w):
         [w[2], w[1], -w[0], 0],
     ])
 
+def normalize_quaternion(q):
+    """
+    Normalizes quaternion so that it is unit quaternion
+    """
+    norm = np.sqrt(np.sum(q ** 2))
+    return q / norm
+
 
 '''
 def rotate_mesh_by_matrix(

@@ -53,6 +53,8 @@ class AeroVehicle:
 
         self.vehicle_path = f'vehicle_saves/{self.name}'
 
+        [comp.set_parent(self) for comp in self.components]
+
         path_object = pathlib.Path(self.vehicle_path)
         path_object.mkdir(parents=True, exist_ok=True)
 
@@ -65,30 +67,19 @@ class AeroVehicle:
         # List of Debug Actors
         self.cg_sphere = None
 
-    def compute_forces_and_moments_lookup(self, quat: np.ndarray,
-                                          vel: np.ndarray,
-                                          angular_rate: np.ndarray,
-                                          com: np.ndarray,)\
-            -> Tuple[np.ndarray, np.ndarray]:
+    def compute_forces_and_moments_lookup(self, state: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Computes the aerodynamic forces and moments on the vehicle by looking up
         pre-computed data for each component
-        :param quat: The orientation quaternion [w, x, y, z] that transforms from the inertial frame to the body frame
-        :param vel: The velocity vector [Vx, Vy, Vz] in the inertial frame
-        :param angular_rate: The angular velocity vector [p, q, r] in the body frame
+        :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
         """
-        # Calculate Direction Cosine Matrix from the quaternion
-        C_B_I = utils.dir_cosine_np(quat)  # Body to Inertial
-
-        # Transform inertial velocity into the vehicle's body frame
-        v_B = C_B_I @ vel
 
         F_b = np.zeros(3)
         M_b = np.zeros(3)
 
         # For each component, look up the forces based on its local flow conditions
         for component in self.components:
-            F_b_comp, M_b_comp = component.get_forces_and_moment_lookup(v_B, angular_rate, com)
+            F_b_comp, M_b_comp = component.get_forces_and_moment_lookup(state)
             F_b += F_b_comp
             M_b += M_b_comp
 
@@ -141,7 +132,7 @@ class AeroVehicle:
         #g = np.array([0, 0, 0])
 
         # Forces and moments (in the body frame)
-        F_B, M_B = self.compute_forces_and_moments_lookup(quat, vel_I, omega_B, self.xyz_ref)
+        F_B, M_B = self.compute_forces_and_moments_lookup(state)
         #M_B = np.zeros(3)
 
         C_B_I = utils.dir_cosine_np(quat)  # From body to internal
@@ -236,9 +227,9 @@ class AeroVehicle:
         Updates debug visuals for the vehicle and its components given the current state
         :param state: The current state of the vehicle
         """
-        T = np.eye(4)
-        T[3, :3] = state[:3]
-        self.cg_sphere.user_matrix = T
+        #T = np.eye(4)
+        #T[3, :3] = state[:3]
+        #self.cg_sphere.user_matrix = T
         [comp.update_debug(state) for comp in self.components]
 
     def animate(self, t_arr: np.ndarray, x_arr: np.ndarray):
@@ -270,6 +261,7 @@ class AeroVehicle:
 
             # Update actors with interpolated state
             self.update_actors(state)
+            self.update_debug(state)
 
             pos = state[:3]
             self.pl.camera.focal_point = pos

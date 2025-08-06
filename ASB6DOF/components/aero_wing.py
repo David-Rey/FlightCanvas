@@ -21,7 +21,7 @@ class AeroWing(AeroComponent):
             xsecs: List["asb.WingXSec"],
             axis_vector: Union[np.ndarray, List[float]],
             is_prime: bool = True,
-            parent: Optional['AeroComponent'] = None,
+            symmetric_comp: Optional['AeroComponent'] = None,
             **kwargs
     ):
         """
@@ -32,7 +32,7 @@ class AeroWing(AeroComponent):
         :param is_prime: Inherited from AeroComponent. Used to identify the primary wing in a symmetric pair
         :param kwargs:  Additional keyword arguments to be passed to the `aerosandbox.Wing` constructor
         """
-        super().__init__(name, axis_vector, is_prime=is_prime, parent=parent)
+        super().__init__(name, axis_vector, is_prime=is_prime, symmetric_comp=symmetric_comp)
 
         self.set_translate(axis_vector)
 
@@ -107,7 +107,7 @@ def create_symmetric_wing_pair(
         xsecs=mirrored_xsecs,
         axis_vector=utils.flip_y(axis_vector),
         is_prime=False,
-        parent=right_aero_wing,
+        symmetric_comp=right_aero_wing,
         **kwargs
     )
 

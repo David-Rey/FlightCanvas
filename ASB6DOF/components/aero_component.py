@@ -33,18 +33,19 @@ class AeroComponent(ABC):
     def __init__(self, name: str,
                  axis_vector: Union[np.ndarray, List[float]],
                  is_prime=True,
-                 parent: Optional['AeroComponent'] = None,):
+                 symmetric_comp: Optional['AeroComponent'] = None,):
         """
         :param name: The name of the component
         :param axis_vector: The primary axis of the component, used for rotation (e.g., hinge axis for a control surface)
         :param is_prime: Flag to indicate if this is a primary component. If False, control surface rotations are inverted
-        :param parent: The AeroComponent object that is symmetric to the current AeroComponent object
+        :param symmetric_comp: The AeroComponent object that is symmetric to the current AeroComponent object
         """
 
         self.name = name
         self.axis_vector = np.array(axis_vector)
         self.is_prime = is_prime
-        self.parent = parent
+        self.symmetric_comp = symmetric_comp
+        self.parent = None
 
         # Mesh and Position Attributes
         self.mesh: Optional[pv.PolyData] = None
@@ -67,31 +68,30 @@ class AeroComponent(ABC):
         self.ref_actor = None
         self.label_actor = None
         self.axis_ref = None
+        self.force_actors = []
 
-        # Set transform_matrix
-        #self.transform_matrix = self.get_transform()
-
-    def get_alpha_beta(self, v_comp: np.ndarray) -> Tuple[float, float]:
+    def set_parent(self, parent):
         """
-        Calculates the component's local angle of attack and sideslip.
-        :param v_comp: The velocity vector of the component in the body frame
-        :return: A tuple containing the component's local angle of attack (alpha) and
-            sideslip angle (beta) in radians
+        TODO
         """
-        #T = self.get_transform()
-        #R = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
+        self.parent = parent
 
-
-        alpha, beta = get_rel_alpha_beta(v_comp)
-        return alpha, beta
-
-    def get_forces_and_moment_lookup(self, v_B: np.ndarray, angular_rate: np.ndarray, com: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def get_forces_and_moment_lookup(self, state) -> Tuple[np.ndarray, np.ndarray]:
         """
         Looks up aerodynamic forces by interpolating pre-computed buildup data
-        :param v_B: The velocity vector of the vehicle in the body frame
-        :param angular_rate: Angular rotation of the vehicle in the body frame
+        :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
         :return: Forces and moments from lookup table
         """
+
+        vel = state[3:6]
+        quat = state[6:10]
+        angular_rate = state[10:]
+
+        # Calculate Direction Cosine Matrix from the quaternion
+        C_B_I = utils.dir_cosine_np(quat)  # Body to Inertial
+
+        # Transform inertial velocity into the vehicle's body frame
+        v_B = C_B_I @ vel
 
         T = self.get_transform()
         R = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
@@ -103,12 +103,12 @@ class AeroComponent(ABC):
         if self.is_prime:
             F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, v_comp)
         else:
-            F_b, M_b = self.parent.buildup_manager.get_forces_and_moments(alpha, -beta, v_comp)
+            F_b, M_b = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, -beta, v_comp)
             F_b[1] = -F_b[1]
             M_b[0] = -M_b[0]
             M_b[2] = -M_b[2]
 
-        lever_arm = self.xyz_ref - com
+        lever_arm = self.xyz_ref - self.parent.xyz_ref
         M_b_cross = np.cross(-lever_arm, F_b)
         M_b_total = M_b + M_b_cross
         return F_b, M_b_total
@@ -256,17 +256,26 @@ class AeroComponent(ABC):
         """
         TODO
         """
-        #self.update_dynamic_transform(state)
-        #self.ref_actor.user_matrix = self.dynamic_transform_matrix
-        #if self.arrow_actor is not None:
-        #    self.arrow_actor.user_matrix = self.dynamic_transform_matrix
-        #self.label_actor.user_matrix = self.dynamic_transform_matrix
+        pos_inertial = state[:3]
+        quat = state[6:10]
+        R = utils.dir_cosine_np(utils.normalize_quaternion(quat))  # body to inertial rotation
 
-        #from .aero_wing import AeroWing
-        #if isinstance(self, AeroWing):
-        #    self.axis_ref.user_matrix = self.dynamic_transform_matrix
+        # Clear any existing thrust visuals
+        for actor in self.force_actors:
+            self.parent.pl.remove_actor(actor)
+        self.force_actors.clear()
 
-        pass
+        start = pos_inertial + R @ self.xyz_ref
+
+        F_b, _ = self.get_forces_and_moment_lookup(state)
+
+        k = .15
+        direction = (R @ F_b) * k
+        end = start + direction
+
+        line = pv.Line(start, end)
+        actor = self.parent.pl.add_mesh(line, color='red', line_width=3)
+        self.force_actors.append(actor)
 
     def translate(self, xyz: Union[np.ndarray, List[float]]) -> "AeroComponent":
         """
@@ -365,6 +374,20 @@ class AeroComponent(ABC):
         )
         plt.show()
 '''
+
+# def get_alpha_beta(self, v_comp: np.ndarray) -> Tuple[float, float]:
+"""
+Calculates the component's local angle of attack and sideslip.
+:param v_comp: The velocity vector of the component in the body frame
+:return: A tuple containing the component's local angle of attack (alpha) and
+    sideslip angle (beta) in radians
+"""
+# T = self.get_transform()
+# R = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
+
+
+# alpha, beta = get_rel_alpha_beta(v_comp)
+# return alpha, beta
 
 # self.alpha_grid = None  # Hold grid of an angle of attack for buildup
 # self.beta_grid = None  # Hold grid of sideslip angles for buildup
