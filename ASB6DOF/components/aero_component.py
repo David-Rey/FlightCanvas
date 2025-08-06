@@ -71,19 +71,17 @@ class AeroComponent(ABC):
         # Set transform_matrix
         #self.transform_matrix = self.get_transform()
 
-    def get_alpha_beta(self, v_B: np.ndarray, angular_rate: np.ndarray) -> Tuple[float, float]:
+    def get_alpha_beta(self, v_comp: np.ndarray) -> Tuple[float, float]:
         """
         Calculates the component's local angle of attack and sideslip.
-        :param v_B: The velocity vector of the vehicle in the body frame
-        :param angular_rate: Angular rotation of the vehicle in the body frame
+        :param v_comp: The velocity vector of the component in the body frame
         :return: A tuple containing the component's local angle of attack (alpha) and
             sideslip angle (beta) in radians
         """
-        T = self.get_transform()
-        R = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
+        #T = self.get_transform()
+        #R = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
 
-        # Transform velocity from body frame to the component's local frame
-        v_comp = R @ v_B + np.cross(angular_rate, self.xyz_ref)
+
         alpha, beta = get_rel_alpha_beta(v_comp)
         return alpha, beta
 
@@ -94,11 +92,18 @@ class AeroComponent(ABC):
         :param angular_rate: Angular rotation of the vehicle in the body frame
         :return: Forces and moments from lookup table
         """
-        alpha, beta = self.get_alpha_beta(v_B, angular_rate)
+
+        T = self.get_transform()
+        R = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
+
+        # Transform velocity from body frame to the component's local frame
+        v_comp = R @ v_B - np.cross(angular_rate, self.xyz_ref)
+
+        alpha, beta = get_rel_alpha_beta(v_comp)
         if self.is_prime:
-            F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, v_B)
+            F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, v_comp)
         else:
-            F_b, M_b = self.parent.buildup_manager.get_forces_and_moments(alpha, -beta, v_B)
+            F_b, M_b = self.parent.buildup_manager.get_forces_and_moments(alpha, -beta, v_comp)
             F_b[1] = -F_b[1]
             M_b[0] = -M_b[0]
             M_b[2] = -M_b[2]
@@ -106,7 +111,6 @@ class AeroComponent(ABC):
         lever_arm = self.xyz_ref - com
         M_b_cross = np.cross(-lever_arm, F_b)
         M_b_total = M_b + M_b_cross
-        #M_b_total = M_b_cross
         return F_b, M_b_total
 
     def init_buildup_manager(self, vehicle_path):
@@ -235,7 +239,7 @@ class AeroComponent(ABC):
 
         # Draw a sphere at the component's reference point
         sphere = pv.Sphere(radius=sphere_radius, center=self.xyz_ref)
-        #self.ref_actor = pl.add_mesh(sphere, color='red', show_edges=False, label=f"{self.asb_object.name} Ref")
+        self.ref_actor = pl.add_mesh(sphere, color='red', show_edges=False, label=f"{self.asb_object.name} Ref")
 
         # Draw an arrow from the component's ref point to the vehicle's CoM
         self.arrow_actor = utils.plot_arrow_from_points(pl, self.xyz_ref, com, color='grey')

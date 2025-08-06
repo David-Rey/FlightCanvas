@@ -110,16 +110,16 @@ class AeroVehicle:
 
     def run_sim(self, tf):
         # Initial state
-        pos_0 = np.array([0, 0, 850])  # Initial position
-        vel_0 = np.array([25, 0, -2])  # Initial velocity
+        pos_0 = np.array([0, 0, 950])  # Initial position
+        vel_0 = np.array([100, 0, 0.01])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
-        omega_0 = np.array([0, 0, 0])  # Initial angular velocity
+        omega_0 = np.array([0, 0, 0.01])  # Initial angular velocity
 
         state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
 
         # Time span for the simulation
         t_span = (0, tf)  # Simulate for 10 seconds
-        t_eval = np.linspace(t_span[0], t_span[1], 100)  # Time points for output
+        t_eval = np.linspace(t_span[0], t_span[1], 400)  # Time points for output
         solution = solve_ivp(self.dynamics_6DOF, t_span, state_0, t_eval=t_eval, rtol=1e-5, atol=1e-5)
         return t_eval, solution['y']
 
