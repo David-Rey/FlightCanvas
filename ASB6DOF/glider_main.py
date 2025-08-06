@@ -4,7 +4,7 @@ import aerosandbox as asb
 import aerosandbox.numpy as np
 
 from components.aero_fuselage import AeroFuselage
-from components.aero_wing import create_symmetric_wing_pair, AeroWing
+from components.aero_wing import create_planar_wing_pair, AeroWing
 from aero_vehicle import AeroVehicle
 
 
@@ -19,11 +19,11 @@ if __name__ == '__main__':
         asb.WingXSec(xyz_le=[0.01, 0.5, 0], chord=0.16, twist=0, airfoil=wing_airfoil),
         asb.WingXSec(xyz_le=[0.08, 1, 0.1], chord=0.08, twist=-2, airfoil=wing_airfoil),
     ]
-    main_wings = create_symmetric_wing_pair(
+    main_wings = create_planar_wing_pair(
         name="Main Wing",
         xsecs=main_wing_xsecs,
         translation=[0.08, 0.05, 0],
-        axis_vector=[1, 0, 0]
+        ref_direction=[1, 0, 0]
     )
 
     # Create the horizontal tail using the factory function
@@ -31,11 +31,11 @@ if __name__ == '__main__':
         asb.WingXSec(xyz_le=[0, 0, 0], chord=0.1, twist=0, airfoil=tail_airfoil),
         asb.WingXSec(xyz_le=[0.02, 0.17, 0], chord=0.08, twist=0, airfoil=tail_airfoil)
     ]
-    h_tail_wings = create_symmetric_wing_pair(
+    h_tail_wings = create_planar_wing_pair(
         name="Horizontal Stabilizer",
         xsecs=h_tail_xsecs,
         translation=[0.6, 0, 0.06],  # Apply translation to the whole pair
-        axis_vector=[1, 0, -0.02]
+        ref_direction=[1, 0, -0.02]
     )
 
     # Create the fuselage
@@ -60,7 +60,7 @@ if __name__ == '__main__':
     v_tail_wing = AeroWing(
         name="Vertical Stabilizer",
         xsecs=vertical_xsecs,
-        axis_vector=[1, 0, 0],
+        ref_direction=[1, 0, 0],
     ).translate([0.6, 0, 0.07])
 
     # Assemble the Vehicle
@@ -78,7 +78,7 @@ if __name__ == '__main__':
     )
 
     # DEBUG
-    animate = 1
+    animate = 0
 
     aero_vehicle.compute_buildup()
     aero_vehicle.save_buildup()
@@ -94,3 +94,17 @@ if __name__ == '__main__':
         aero_vehicle.init_debug()
         aero_vehicle.show()
 
+
+    '''
+    main_wing_xsecs = [
+        asb.WingXSec(xyz_le=[-.1, 0, 0], chord=0.18, twist=2, airfoil=wing_airfoil),
+        asb.WingXSec(xyz_le=[-0.09, 0.5, 0], chord=0.16, twist=0, airfoil=wing_airfoil),
+        asb.WingXSec(xyz_le=[-0.02, 1, 0.1], chord=0.08, twist=-2, airfoil=wing_airfoil),
+    ]
+    main_wings = create_planar_wing_pair(
+        name="Main Wing",
+        xsecs=main_wing_xsecs,
+        translation=[0.18, 0.05, 0],
+        ref_direction=[1, 0, 0]
+    )
+    '''

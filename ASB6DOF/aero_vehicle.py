@@ -67,6 +67,9 @@ class AeroVehicle:
         # List of Debug Actors
         self.cg_sphere = None
 
+        # Update transformation matrices for all components
+        [comp.update_transform() for comp in self.components]
+
     def compute_forces_and_moments_lookup(self, state: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Computes the aerodynamic forces and moments on the vehicle by looking up
@@ -204,7 +207,7 @@ class AeroVehicle:
         """
         [comp.update_actor(state) for comp in self.components]
 
-    def init_debug(self, sphere_radius=0.02):
+    def init_debug(self, sphere_radius=0.02, label=True):
         """
         Draws debug visuals for the vehicle and its components
         :param sphere_radius: The base radius for the debug spheres
@@ -216,7 +219,7 @@ class AeroVehicle:
 
         # Instruct each component to draw its own debug visuals
         for component in self.components:
-            component.init_debug(self.pl, self.xyz_ref, sphere_radius=sphere_radius)
+            component.init_debug(self.pl, self.xyz_ref, sphere_radius=sphere_radius, label=label)
 
     def update_debug(self, state: np.ndarray):
         """

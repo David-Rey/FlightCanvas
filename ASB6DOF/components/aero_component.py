@@ -31,18 +31,21 @@ class AeroComponent(ABC):
     """
 
     def __init__(self, name: str,
-                 axis_vector: Union[np.ndarray, List[float]],
+                 ref_direction: Union[np.ndarray, List[float]],
+                 control_pivot=None,
                  is_prime=True,
                  symmetric_comp: Optional['AeroComponent'] = None,):
         """
         :param name: The name of the component
-        :param axis_vector: The primary axis of the component, used for rotation (e.g., hinge axis for a control surface)
+        :param ref_direction: The primary axis of the component, used for rotation (e.g., hinge axis for a control surface)
+        :param control_pivot: TODO
         :param is_prime: Flag to indicate if this is a primary component. If False, control surface rotations are inverted
         :param symmetric_comp: The AeroComponent object that is symmetric to the current AeroComponent object
         """
 
         self.name = name
-        self.axis_vector = np.array(axis_vector)
+        self.ref_direction = np.array(ref_direction)
+        self.control_pivot = control_pivot
         self.is_prime = is_prime
         self.symmetric_comp = symmetric_comp
         self.symmetry_type = ''  # either 'xz-plane' or 'x-radial'
@@ -69,7 +72,8 @@ class AeroComponent(ABC):
         self.arrow_actor = None
         self.ref_actor = None
         self.label_actor = None
-        self.axis_ref = None
+        self.ref_direction_actor = None
+        self.control_pivot_actor = None
         self.force_actors = []
 
     def set_parent(self, parent: 'AeroComponent'):
@@ -198,7 +202,7 @@ class AeroComponent(ABC):
 
         self.pv_actor = pl.add_mesh(self.mesh, **kwargs)
 
-        self.update_transform()
+        #self.update_transform()
 
         # The user_matrix allows for efficient transformation of the actor
         self.pv_actor.user_matrix = self.static_transform_matrix
@@ -206,29 +210,39 @@ class AeroComponent(ABC):
     def get_transform(self, rotation=0) -> np.ndarray:
         """
         Calculates the 4x4 homogeneous transformation matrix for the component
-        :param rotation: The rotation angle [radians] around the `axis_vector`
+        :param rotation: The rotation angle [radians] around the `ref_direction`
         :return: The 4x4 transformation matrix
         """
         x_vec = np.array([1, 0, 0])
         ref = self.xyz_ref
         flip_matrix = np.eye(4)
+        axial_rotation = np.eye(4)
 
         # If this is not a 'prime' component invert the rotation for symmetric control deflection
         if not self.is_prime:
-            rotation = -rotation
-            flip_matrix[1, 1] = -1
+            # if the component is reflected around xz plane then flip around y-axis
+            if self.symmetry_type == 'xz-plane':
+                rotation = -rotation
+                flip_matrix[1, 1] = -1
+            # check for x-radial symmetry
+            elif self.symmetry_type == 'x-radial':
+                axial_rotation[:3, :3] = utils.rotate_z(self.radial_angle)
+            else:
+                raise ValueError("self.symmetry_type needed to be either 'xz-plane' or 'x-radial'")
 
         # rotate from the standard body X-axis to the component's defined axis
-        transform_from_axis_vec = utils.rotation_matrix_from_vectors(x_vec, self.axis_vector)
+        transform_from_axis_vec = utils.rotation_matrix_from_vectors(x_vec, self.ref_direction)
 
         # rotate around that new axis (for control deflection)
-        transform_from_control = utils.rotation_matrix_from_axis_angle(self.axis_vector, rotation)
+        transform_from_control = np.eye(4)
+        if self.control_pivot is not None:
+            transform_from_control = utils.rotation_matrix_from_axis_angle(self.control_pivot, rotation)
 
         # translate the rotated component to its reference position in the body frame
         transform_from_ref = utils.translation_matrix(ref)
 
         # The final matrix is the product of these transformations
-        static_transform_matrix = transform_from_ref @ transform_from_control @ transform_from_axis_vec @ flip_matrix
+        static_transform_matrix = transform_from_ref @ transform_from_control @ transform_from_axis_vec @ flip_matrix @ axial_rotation
         return static_transform_matrix
 
     def update_transform(self, **kwargs):
@@ -262,12 +276,13 @@ class AeroComponent(ABC):
         self.pv_actor.user_matrix = self.dynamic_transform_matrix
 
 
-    def init_debug(self, pl: pv.Plotter, com: np.ndarray, sphere_radius=0.02):
+    def init_debug(self, pl: pv.Plotter, com: np.ndarray, sphere_radius=0.02, label=True):
         """
         Draws debug visuals for this component in a PyVista plotter
         :param pl: The `pyvista.Plotter` to draw on
         :param com: The vehicle's center of mass coordinates [x, y, z]
         :param sphere_radius: The radius of the sphere marking the reference point
+        :param label: If true, draw a label on this component
         """
 
         # Draw a sphere at the component's reference point
@@ -278,12 +293,11 @@ class AeroComponent(ABC):
         self.arrow_actor = utils.plot_arrow_from_points(pl, self.xyz_ref, com, color='grey')
 
         # Add a text label at the reference point
-        self.label_actor = pl.add_point_labels(np.array([self.xyz_ref]), [f'{self.name}'])
+        if label:
+            self.label_actor = pl.add_point_labels(np.array([self.xyz_ref]), [f'{self.name}'])
 
-        # Specific debug visuals for subclasses like AeroWing
-        from .aero_wing import AeroWing
-        if isinstance(self, AeroWing):
-            self.axis_ref = self.draw_axis_vector(pl)
+        self.ref_direction_actor = self.draw_ref_direction(pl)
+        self.control_pivot_actor = self.draw_control_pivot(pl)
 
     def update_debug(self, state: np.ndarray):
         """
@@ -326,6 +340,21 @@ class AeroComponent(ABC):
         """
         self.translate(xyz)
 
+    def draw_ref_direction(self, pl: pv.Plotter) -> pv.Actor:
+        """
+        Draws the component's `ref_direction` in a PyVista plot
+        :param pl: The PyVista plotter to draw on
+        """
+        return utils.draw_line_from_point_and_vector(pl, self.xyz_ref, self.ref_direction, color='green', line_width=4)
+
+    def draw_control_pivot(self, pl: pv.Plotter) -> Union[pv.Actor, None]:
+        """
+        Draws the component's `control_pivot` in a PyVista plot
+        :param pl: The PyVista plotter to draw on
+        """
+        if self.control_pivot is not None:
+            return utils.draw_line_from_point_and_vector(pl, self.xyz_ref, self.control_pivot, color='blue', line_width=4)
+        return None
 
     '''
     def get_forces_and_moment_lookup(self, v_B: np.ndarray) -> np.ndarray:

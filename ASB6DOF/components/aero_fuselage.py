@@ -30,7 +30,7 @@ class AeroFuselage(AeroComponent):
         :param is_prime: Inherited from AeroComponent. Since fuselages are rarely mirrored, this usually remains True
         :param kwargs: Additional keyword arguments to be passed to the `aerosandbox.Fuselage` constructor
         """
-        super().__init__(name, axis_vector, is_prime)
+        super().__init__(name, axis_vector, is_prime=is_prime)
 
         # Ensure fuselage is not symmetric for visualization
         kwargs['symmetric'] = False

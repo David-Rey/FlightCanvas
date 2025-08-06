@@ -19,7 +19,8 @@ class AeroWing(AeroComponent):
             self,
             name: str,
             xsecs: List["asb.WingXSec"],
-            axis_vector: Union[np.ndarray, List[float]],
+            ref_direction: Union[np.ndarray, List[float]],
+            control_pivot = None,
             is_prime: bool = True,
             symmetric_comp: Optional['AeroComponent'] = None,
             symmetry_type = None,
@@ -29,14 +30,14 @@ class AeroWing(AeroComponent):
         Initializes the AeroWing component
         :param name: The name of the wing or wing section
         :param xsecs: A list of `aerosandbox.WingXSec` objects that define the wing's cross-sections
-        :param axis_vector: The primary axis for rotation, typically representing the hinge line of a control surface
+        :param ref_direction: The primary axis for rotation, typically representing the hinge line of a control surface
         :param is_prime: Inherited from AeroComponent. Used to identify the primary wing in a symmetric pair
         :param kwargs:  Additional keyword arguments to be passed to the `aerosandbox.Wing` constructor
         """
-        super().__init__(name, axis_vector, is_prime=is_prime, symmetric_comp=symmetric_comp)
+        super().__init__(name, ref_direction, control_pivot=control_pivot, is_prime=is_prime, symmetric_comp=symmetric_comp)
 
         # Set translation
-        self.set_translate(axis_vector)
+        self.set_translate(ref_direction)
 
         # Set symmetry type
         self.symmetry_type = symmetry_type
@@ -60,19 +61,12 @@ class AeroWing(AeroComponent):
         # The translation will be applied to the mesh after generation.
         self.mesh = utils.get_mesh(self.wing)
 
-    def draw_axis_vector(self, pl: pv.Plotter) -> pv.Actor:
-        """
-        Draws the component's `axis_vector` in a PyVista plot
-        :param pl: The PyVista plotter to draw on
-        """
-        return utils.draw_line_from_point_and_vector(pl, self.xyz_ref, self.axis_vector, color='green', line_width=4)
 
-
-def create_symmetric_wing_pair(
+def create_planar_wing_pair(
         name: str,
         xsecs: List["asb.WingXSec"],
         translation: Union[np.ndarray, List[float]] = (0, 0, 0),
-        axis_vector: Union[np.ndarray, List[float]] = (1, 0, 0),
+        ref_direction: Union[np.ndarray, List[float]] = (1, 0, 0),
         **kwargs
 ) -> List[AeroWing]:
     """
@@ -80,14 +74,14 @@ def create_symmetric_wing_pair(
     :param name: The name of the wing or wing section
     :param xsecs: A list of `aerosandbox.WingXSec` objects that define the wing's cross-sections
     :param translation: The new reference position [x, y, z]
-    :param axis_vector: The primary axis for rotation, typically representing the hinge line of a control surface
+    :param ref_direction: The primary axis for rotation, typically representing the hinge line of a control surface
     :param kwargs:  Additional keyword arguments to be passed to the `aerosandbox.Wing` constructor
     """
     # Create the right-hand wing wrapper from the provided cross-sections
     right_aero_wing = AeroWing(
         name=f"{name}",
         xsecs=xsecs,
-        axis_vector=axis_vector,
+        ref_direction=ref_direction,
         **kwargs
     )
 
@@ -110,7 +104,7 @@ def create_symmetric_wing_pair(
     left_aero_wing = AeroWing(
         name=f"{name} Star",
         xsecs=mirrored_xsecs,
-        axis_vector=utils.flip_y(axis_vector),
+        ref_direction=utils.flip_y(ref_direction),
         is_prime=False,
         symmetric_comp=right_aero_wing,
         symmetry_type='xz-plane',
@@ -126,3 +120,53 @@ def create_symmetric_wing_pair(
     left_aero_wing.translate(left_translation)
 
     return [right_aero_wing, left_aero_wing]
+
+def create_axial_wing_pair(
+        name: str,
+        xsecs: List["asb.WingXSec"],
+        translation: Union[np.ndarray, List[float]] = (0, 0, 0),
+        ref_direction: Union[np.ndarray, List[float]] = (1, 0, 0),
+        control_pivot: Union[np.ndarray, List[float]] = None,
+        num_wings: int = 2,
+        **kwargs
+) -> List[AeroWing]:
+    """
+    Creates an axial symmetric pair of AeroWing objects
+    :param name: The name of the wing or wing section
+    :param xsecs: A list of `aerosandbox.WingXSec` objects that define the wing's cross-sections
+    :param translation: The new reference position [x, y, z]
+    :param ref_direction: The primary axis for rotation, typically representing the hinge line of a control surface
+    :param control_pivot: The axis at which the component will rotate given a control input
+    :param num_wings: The number of wings to create
+    :param kwargs:  Additional keyword arguments to be passed to the `aerosandbox.Wing` constructor
+    """
+    # Create the right-hand wing wrapper from the provided cross-sections
+    main_aero_wing = AeroWing(
+        name=f"{name}",
+        xsecs=xsecs,
+        ref_direction=ref_direction,
+        control_pivot=control_pivot,
+        **kwargs
+    ).translate(translation)
+
+    wing_array = [main_aero_wing]
+
+    angle_array = np.linspace(0, 360, num_wings + 1)
+
+    for i in range(num_wings - 1):
+        R_Comp_Body = utils.rotate_z(angle_array[i+1])
+
+        new_wing = AeroWing(
+            name=f"{name} Angle {angle_array[i+1]}",
+            xsecs=xsecs,
+            ref_direction=R_Comp_Body @ ref_direction,
+            control_pivot=R_Comp_Body @ control_pivot,
+            is_prime=False,
+            symmetric_comp=main_aero_wing,
+            symmetry_type='x-radial',
+            **kwargs
+        ).translate(R_Comp_Body @ translation)
+        new_wing.radial_angle = angle_array[i+1]
+        wing_array.append(new_wing)
+
+    return wing_array
