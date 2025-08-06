@@ -1,4 +1,4 @@
-# aero_project/main.py
+# aero_project/glider_main.py
 
 import aerosandbox as asb
 import aerosandbox.numpy as np
@@ -6,8 +6,6 @@ import aerosandbox.numpy as np
 from components.aero_fuselage import AeroFuselage
 from components.aero_wing import create_symmetric_wing_pair, AeroWing
 from aero_vehicle import AeroVehicle
-import utils
-from matplotlib import pyplot as plt
 
 
 if __name__ == '__main__':
@@ -30,14 +28,14 @@ if __name__ == '__main__':
 
     # Create the horizontal tail using the factory function
     h_tail_xsecs = [
-        asb.WingXSec(xyz_le=[0, 0, 0], chord=0.1, twist=-0, airfoil=tail_airfoil),
-        asb.WingXSec(xyz_le=[0.02, 0.17, 0], chord=0.08, twist=-0, airfoil=tail_airfoil)
+        asb.WingXSec(xyz_le=[0, 0, 0], chord=0.1, twist=0, airfoil=tail_airfoil),
+        asb.WingXSec(xyz_le=[0.02, 0.17, 0], chord=0.08, twist=0, airfoil=tail_airfoil)
     ]
     h_tail_wings = create_symmetric_wing_pair(
         name="Horizontal Stabilizer",
         xsecs=h_tail_xsecs,
         translation=[0.6, 0, 0.06],  # Apply translation to the whole pair
-        axis_vector=[1, 0, 0]
+        axis_vector=[1, 0, -0.02]
     )
 
     # Create the fuselage
@@ -62,7 +60,6 @@ if __name__ == '__main__':
     v_tail_wing = AeroWing(
         name="Vertical Stabilizer",
         xsecs=vertical_xsecs,
-        #translation=[0.6, 0, 0.07],  # FIX
         axis_vector=[1, 0, 0],
     ).translate([0.6, 0, 0.07])
 
@@ -80,28 +77,20 @@ if __name__ == '__main__':
         components=all_components
     )
 
+    # DEBUG
+    animate = 1
+
     aero_vehicle.compute_buildup()
     aero_vehicle.save_buildup()
     #aero_vehicle.save_buildup_fig()
     aero_vehicle.load_buildup()
-    #aero_vehicle.compute_forces_and_moments_lookup(quat, vel, omega)
-    #aero_vehicle.set_control(["Horizontal Stabilizer",
-    #                          "Horizontal Stabilizer Star"],
-    #                         np.deg2rad([0, 30]))
-    #aero_vehicle.test_remove_me()
 
-    t_arr, x_arr = aero_vehicle.run_sim(40)
+    if animate:
+        t_arr, x_arr = aero_vehicle.run_sim(40)
+        aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
+        aero_vehicle.animate(t_arr, x_arr)
+    else:
+        aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=0.8)
+        aero_vehicle.init_debug()
+        aero_vehicle.show()
 
-
-    # Visualize the Vehicle
-    aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
-    #aero_vehicle.init_debug()
-    #aero_vehicle.init_debug()
-
-    aero_vehicle.animate(t_arr, x_arr)
-    #aero_vehicle.set_control(["Main Wing", "Main Wing Star"], np.deg2rad([30, 0]))
-    #aero_vehicle.draw(debug=True)
-    #aero_vehicle.update_actors(state)
-    aero_vehicle.show()
-
-    #aero_vehicle.draw_buildup("Horizontal Stabilizer", "M_b", index=2)

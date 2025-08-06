@@ -45,6 +45,8 @@ class AeroComponent(ABC):
         self.axis_vector = np.array(axis_vector)
         self.is_prime = is_prime
         self.symmetric_comp = symmetric_comp
+        self.symmetry_type = ''  # either 'xz-plane' or 'x-radial'
+        self.radial_angle = None  # degrees of rotation around x-axis
         self.parent = None
 
         # Mesh and Position Attributes
@@ -70,9 +72,10 @@ class AeroComponent(ABC):
         self.axis_ref = None
         self.force_actors = []
 
-    def set_parent(self, parent):
+    def set_parent(self, parent: 'AeroComponent'):
         """
-        TODO
+        Sets self.parent to the AeroVehicle for higher level information such as center of mass
+        :param: parent: The AeroVehicle that the component belongs to
         """
         self.parent = parent
 
@@ -82,7 +85,7 @@ class AeroComponent(ABC):
         :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
         :return: Forces and moments from lookup table
         """
-
+        # Extracts velocity, orientation and angular rate from state vector
         vel = state[3:6]
         quat = state[6:10]
         angular_rate = state[10:]
@@ -99,19 +102,49 @@ class AeroComponent(ABC):
         # Transform velocity from body frame to the component's local frame
         v_comp = R @ v_B - np.cross(angular_rate, self.xyz_ref)
 
+        # Get angle of attack (alpha) and sideslip (beta)
         alpha, beta = get_rel_alpha_beta(v_comp)
+
+        # if component is main then use buildup manager, else use symmetric component buildup manager
         if self.is_prime:
             F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, v_comp)
         else:
-            F_b, M_b = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, -beta, v_comp)
-            F_b[1] = -F_b[1]
-            M_b[0] = -M_b[0]
-            M_b[2] = -M_b[2]
 
-        lever_arm = self.xyz_ref - self.parent.xyz_ref
-        M_b_cross = np.cross(-lever_arm, F_b)
+            # if the component is reflected around xz plane then use get_forces_and_moment_xz_plane function
+            if self.symmetry_type == 'xz-plane':
+                F_b, M_b =self.get_forces_and_moment_xz_plane(alpha, beta, v_comp)
+
+            # if the component is rotated around x-axis then use ~~~ function
+            elif self.symmetry_type == 'x-radial':
+                raise NotImplementedError
+            else:
+                raise ValueError("self.symmetry_type needed to be either 'xz-plane' or 'x-radial'")
+
+        # compute distance from component to vehicle center of mass
+        lever_arm = self.parent.xyz_ref - self.xyz_ref
+
+        # compute moment arm
+        M_b_cross = np.cross(lever_arm, F_b)
+
+        # sum aero-moments and moments due to forces
         M_b_total = M_b + M_b_cross
         return F_b, M_b_total
+
+    def get_forces_and_moment_xz_plane(self, alpha, beta, v_comp):
+        """
+        Returns the forces and moments from buildup data for components that are reflected in the xz plane.
+        :param alpha: Angle of attack of component
+        :param beta: Side slip angle of component
+        :param v_comp: Velocity of component
+        """
+        F_b, M_b = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, -beta, v_comp)
+        F_b[1] = -F_b[1]
+        M_b[0] = -M_b[0]
+        M_b[2] = -M_b[2]
+        return F_b, M_b
+
+    def get_forces_and_moment_x_axial(self, alpha, beta, v_comp):
+        pass
 
     def init_buildup_manager(self, vehicle_path):
         if self.is_prime:
@@ -392,3 +425,9 @@ Calculates the component's local angle of attack and sideslip.
 # self.alpha_grid = None  # Hold grid of an angle of attack for buildup
 # self.beta_grid = None  # Hold grid of sideslip angles for buildup
 # self.asb_data = None  # To hold the aero build data
+
+# else:
+#    F_b, M_b = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, -beta, v_comp)
+#    F_b[1] = -F_b[1]
+#    M_b[0] = -M_b[0]
+#    M_b[2] = -M_b[2]

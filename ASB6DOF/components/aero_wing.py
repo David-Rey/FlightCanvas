@@ -22,6 +22,7 @@ class AeroWing(AeroComponent):
             axis_vector: Union[np.ndarray, List[float]],
             is_prime: bool = True,
             symmetric_comp: Optional['AeroComponent'] = None,
+            symmetry_type = None,
             **kwargs
     ):
         """
@@ -34,7 +35,11 @@ class AeroWing(AeroComponent):
         """
         super().__init__(name, axis_vector, is_prime=is_prime, symmetric_comp=symmetric_comp)
 
+        # Set translation
         self.set_translate(axis_vector)
+
+        # Set symmetry type
+        self.symmetry_type = symmetry_type
 
         # Ensure wing is not symmetric for visualization
         kwargs['symmetric'] = False
@@ -108,8 +113,10 @@ def create_symmetric_wing_pair(
         axis_vector=utils.flip_y(axis_vector),
         is_prime=False,
         symmetric_comp=right_aero_wing,
+        symmetry_type='xz-plane',
         **kwargs
     )
+    #left_aero_wing.symmetry_type = 'xz-plane'
 
     # Apply the overall translation to both wings and return them as a list
     right_aero_wing.translate(translation)

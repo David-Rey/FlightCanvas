@@ -100,17 +100,20 @@ class AeroVehicle:
                     break  # Move to the next surface name once found
 
     def run_sim(self, tf):
+        """
+        TODO
+        """
         # Initial state
         pos_0 = np.array([0, 0, 950])  # Initial position
         vel_0 = np.array([100, 0, 0.01])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
-        omega_0 = np.array([0, 0, 0.01])  # Initial angular velocity
+        omega_0 = np.array([0, 0, 0])  # Initial angular velocity
 
         state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
 
         # Time span for the simulation
         t_span = (0, tf)  # Simulate for 10 seconds
-        t_eval = np.linspace(t_span[0], t_span[1], 400)  # Time points for output
+        t_eval = np.linspace(t_span[0], t_span[1], 500)  # Time points for output
         solution = solve_ivp(self.dynamics_6DOF, t_span, state_0, t_eval=t_eval, rtol=1e-5, atol=1e-5)
         return t_eval, solution['y']
 
@@ -120,26 +123,19 @@ class AeroVehicle:
         quat = state[6:10]  # Orientation as a quaternion
         omega_B = state[10:13]  # Angular velocity in the body frame
 
-        print(f"  Time {t}")
-        print(f"  Position (Inertial): {pos_I}")
-        print(f"  Velocity (Inertial): {vel_I}")
-        print(f"  Quaternion: {quat}")
-        print(f"  Angular Velocity (Body): {omega_B}")
-        print("\n")
-
         # Gravity in the inertial frame
         g = np.array([0, 0, -9.81])
         #g = np.array([0, 0, 0])
 
         # Forces and moments (in the body frame)
         F_B, M_B = self.compute_forces_and_moments_lookup(state)
-        #M_B = np.zeros(3)
 
         C_B_I = utils.dir_cosine_np(quat)  # From body to internal
         C_I_B = C_B_I.transpose()
 
         F_I = (C_I_B @ F_B) + self.mass * g
 
+        # Equations of motion for a 6DoF object
         v_dot = F_I / self.mass
         J_B = np.array(self.moi)
         omega_dot = np.linalg.inv(J_B) @ (M_B - np.cross(omega_B, J_B @ omega_B))
@@ -227,12 +223,9 @@ class AeroVehicle:
         Updates debug visuals for the vehicle and its components given the current state
         :param state: The current state of the vehicle
         """
-        #T = np.eye(4)
-        #T[3, :3] = state[:3]
-        #self.cg_sphere.user_matrix = T
         [comp.update_debug(state) for comp in self.components]
 
-    def animate(self, t_arr: np.ndarray, x_arr: np.ndarray):
+    def animate(self, t_arr: np.ndarray, x_arr: np.ndarray, debug=False):
         """
         Animates the aerodynamic visuals for all components
         """
@@ -261,7 +254,8 @@ class AeroVehicle:
 
             # Update actors with interpolated state
             self.update_actors(state)
-            self.update_debug(state)
+            if debug:
+                self.update_debug(state)
 
             pos = state[:3]
             self.pl.camera.focal_point = pos
@@ -272,10 +266,6 @@ class AeroVehicle:
             self.pl.write_frame()
 
         self.pl.close()
-
-
-    def update_frame(self, state: np.ndarray, debug=False):
-        pass
 
     def show(self):
         """
@@ -359,3 +349,11 @@ def draw_buildup(self, name: str, ID: str, **kwargs):
 # frame (e.g., North-East-Down) and the aerodynamic standard frame
 # (forward-right-down). This needs verification.
 # vel[0] = -vel[0]
+
+
+# print(f"  Time {t}")
+# print(f"  Position (Inertial): {pos_I}")
+# print(f"  Velocity (Inertial): {vel_I}")
+# print(f"  Quaternion: {quat}")
+# print(f"  Angular Velocity (Body): {omega_B}")
+# print("\n")
