@@ -156,7 +156,8 @@ class AeroVehicle:
         quat_dot = 0.5 * utils.omega(omega_B) @ quat
         return np.concatenate((vel_I, v_dot, quat_dot, omega_dot))
 
-    def print_states(self, t_arr: np.ndarray, x_arr: np.ndarray):
+    @staticmethod
+    def print_states(t_arr: np.ndarray, x_arr: np.ndarray):
         """
         :param t_arr: The time array
         :param x_arr: The state array
@@ -278,14 +279,20 @@ class AeroVehicle:
             i_resolution=20,  # Number of subdivisions along X
             j_resolution=20  # Number of subdivisions along Y
         )
+        # add grid to animation
         self.pl.add_mesh(grid, color="white", show_edges=True, edge_color="black")
 
+        # set frames per second
         fps = 30
         dt = 1 / fps
+
+        # calculate number of frames
         num_frames = int(np.floor(t_arr[-1] * fps))
 
+        # output location
         video_filename = '../animation.mp4'
 
+        # start movie
         self.pl.open_movie(video_filename, framerate=fps, quality=9)
 
         for i in range(num_frames):
@@ -300,11 +307,18 @@ class AeroVehicle:
 
             quat = state[6:10]
             C_B_I = utils.dir_cosine_np(quat)
+
+            # get center of mass position
             pos = state[:3] + (C_B_I @ self.xyz_ref)
+
+            # center camera focal point onto center of mass
             self.pl.camera.focal_point = pos
+
+            # set camera location
             cam_offset = 60 * np.array([-1, 1, 1])
             self.pl.camera.position = pos + cam_offset
 
+            # render and write the frame to the .mp4
             self.pl.render()
             self.pl.write_frame()
 

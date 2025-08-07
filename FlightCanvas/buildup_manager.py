@@ -9,6 +9,7 @@ import pathlib
 import pickle
 from FlightCanvas import utils
 from typing import Tuple
+import casadi as ca
 
 
 class BuildupManager:
@@ -44,7 +45,9 @@ class BuildupManager:
         self.asb_data = None  # To hold the aero build data
 
     def get_forces_and_moments(self, alpha: float, beta: float, velocity: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-
+        """
+        TODO
+        """
         scale_factor = (np.linalg.norm(velocity) / self.operating_velocity) ** 2
 
         # Get the alpha and beta axes from the pre-computed grid (in radians)
@@ -180,6 +183,75 @@ class BuildupManager:
         )
 
         plt.close()
+
+    def compute_symbolic_lookup(self) -> Tuple[ca.Function, ca.Function]:
+        """
+        Creates CasADi functions for looking up aerodynamic forces and moments
+        """
+        if self.asb_data is None:
+            raise RuntimeError("Aero data not available. Run compute_buildup() or load_buildup() first.")
+
+        alpha_sym = ca.MX.sym('alpha', 1)  # Angle of attack [rad]
+        beta_sym = ca.MX.sym('beta', 1)  # Sideslip angle [rad]
+        velocity_sym = ca.MX.sym('velocity', 3)  # Velocity vector [m/s]
+
+        # Get the grid axes in radians, which is required for the interpolant
+        alpha_lin_rad = np.deg2rad(self.alpha_grid[:, 0])
+        beta_lin_rad = np.deg2rad(self.beta_grid[0, :])
+        grid_axes = [alpha_lin_rad, beta_lin_rad]
+
+        # Reshape the force and moment data to match the grid dimensions
+        # The required shape is (n_alpha, n_beta, n_dims), where n_dims is 3 for a 3D vector.
+        F_b_data_grid = np.column_stack(self.asb_data["F_b"]).reshape(self.alpha_grid.shape + (3,))
+        M_b_data_grid = np.column_stack(self.asb_data["M_b"]).reshape(self.alpha_grid.shape + (3,))
+
+        # The interpolant requires the data to be flattened. CasADi handles the C-style unraveling internally.
+        F_b_interpolant = ca.interpolant('F_b_interp', 'bspline', grid_axes, F_b_data_grid.flatten())
+        M_b_interpolant = ca.interpolant('M_b_interp', 'bspline', grid_axes, M_b_data_grid.flatten())
+
+        # The input to the interpolant function must be a stacked vector of the grid variables
+        interp_input = ca.vertcat(alpha_sym, beta_sym)
+
+        # Perform the symbolic lookup
+        F_b_base = F_b_interpolant(interp_input)
+        M_b_base = M_b_interpolant(interp_input)
+
+        # The output of a vector interpolant is flattened, so we must reshape it
+        F_b_base = ca.reshape(F_b_base, 3, 1)
+        M_b_base = ca.reshape(M_b_base, 3, 1)
+
+        # Forces and moments scale with velocity squared
+        scale_factor = (ca.norm_2(velocity_sym) / self.operating_velocity) ** 2
+
+        # Use the boolean flags to selectively include/exclude components
+        include_F = ca.DM(self.include_arr[:3]).T  # Transpose to enable element-wise multiplication
+        include_M = ca.DM(self.include_arr[3:]).T
+
+        F_b_sym = F_b_base * include_F * scale_factor
+        M_b_sym = M_b_base * include_M * scale_factor
+
+        inputs = [alpha_sym, beta_sym, velocity_sym]
+        input_names = ['alpha', 'beta', 'velocity']
+
+        # Create symbolic force function
+        F_b_func = ca.Function(
+            f'{self.name}_forces',
+            inputs,
+            [F_b_sym],
+            input_names,
+            ['F_b']
+        )
+
+        # Create symbolic moment function
+        M_b_func = ca.Function(
+            f'{self.name}_moments',
+            inputs,
+            [M_b_sym],
+            input_names,
+            ['M_b']
+        )
+
+        return F_b_func, M_b_func
 
     def compute_symbolic(self):
         pass
