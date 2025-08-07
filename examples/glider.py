@@ -1,4 +1,4 @@
-# aero_project/glider_main.py
+# aero_project/glider.py
 
 import aerosandbox as asb
 import aerosandbox.numpy as np

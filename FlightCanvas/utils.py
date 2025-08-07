@@ -24,13 +24,57 @@ def get_mesh(abs_mesh, translation_vector=None, **kwargs):
     return mesh
 
 
+def plot_line_from_points(
+        plotter: pv.Plotter,
+        start_point: np.ndarray,
+        end_point: np.ndarray,
+        width: float = 10,
+        color: str = 'grey',
+        label: str = None,
+        **kwargs  # Any additional kwargs for plotter.add_mesh (e.g., opacity)
+) -> pv.Actor | None:  # Can return None if line length is zero
+    """
+    Plots a PyVista line from a starting point to an ending point.
+
+    Args:
+        plotter: The PyVista Plotter instance to add the line to.
+        start_point: A 3-element NumPy array or list representing the line's start.
+        end_point: A 3-element NumPy array or list representing the line's end.
+        width: The width of the line. Defaults to 5.
+        color: The color of the line (e.g., 'red', 'blue', '#FF00FF'). Defaults to 'grey'.
+        label: Optional label for the line in the legend.
+        **kwargs: Additional keyword arguments passed directly to `plotter.add_mesh()`.
+
+    Returns:
+        The PyVista Actor object for the added line, or None if the line length is zero.
+    """
+    start_point = np.asarray(start_point, dtype=float)
+    end_point = np.asarray(end_point, dtype=float)
+
+    # Handle zero-length lines to prevent issues
+    if np.allclose(start_point, end_point):
+        print(f"Warning: Line start and end points are identical ({start_point}). Not plotting line.")
+        return None
+
+    # Create the line mesh directly from the two points
+    line_mesh = pv.Line(start_point, end_point)
+
+    # Add the line mesh to the plotter, controlling its thickness with `line_width`
+    actor = plotter.add_mesh(
+        line_mesh,
+        color=color,
+        label=label,
+        line_width=width,
+        **kwargs
+    )
+    return actor
+
+
 def plot_arrow_from_points(
         plotter: pv.Plotter,
         start_point: np.ndarray,
         end_point: np.ndarray,
-        fixed_shaft_radius: float = 0.01,  # Absolute radius of the arrow shaft
-        fixed_tip_radius: float = 0.03,  # Absolute radius of the arrow tip
-        fixed_tip_length_ratio: float = 0.25,  # Tip length as fraction of total arrow length
+        size: float = 1,
         color: str = 'grey',
         label: str = None,
         **kwargs  # Any additional kwargs for plotter.add_mesh (e.g., opacity, show_edges)
@@ -42,10 +86,7 @@ def plot_arrow_from_points(
         plotter: The PyVista Plotter instance to add the arrow to.
         start_point: A 3-element NumPy array or list representing the arrow's tail.
         end_point: A 3-element NumPy array or list representing the arrow's head.
-        fixed_shaft_radius: The desired absolute radius of the arrow's shaft.
-        fixed_tip_radius: The desired absolute radius of the arrow's tip.
-        fixed_tip_length_ratio: The length of the arrow tip as a fraction of the total arrow length.
-                                Defaults to 0.25 (25% of total length).
+        size: The size of the arrow.
         color: The color of the arrow (e.g., 'red', 'blue', '#FF00FF'). Defaults to 'red'.
         label: Optional label for the arrow in the legend.
         **kwargs: Additional keyword arguments passed directly to `plotter.add_mesh()`.
@@ -53,6 +94,14 @@ def plot_arrow_from_points(
     Returns:
         The PyVista Actor object for the added arrow, or None if the arrow length is zero.
     """
+
+    default_shaft_radius = 0.01  # Absolute radius of the arrow shaft
+    default_tip_radius = 0.03  # Absolute radius of the arrow tip
+    tip_length_ratio = 0.15  # Tip length as fraction of total arrow length
+
+    shaft_radius = default_shaft_radius * 2 ** (size - 1)
+    tip_radius = default_tip_radius * 2 ** (size - 1)
+
     start_point = np.asarray(start_point, dtype=float)
     end_point = np.asarray(end_point, dtype=float)
 
@@ -72,11 +121,11 @@ def plot_arrow_from_points(
 
     # Calculate the fractional radii required by pv.Arrow
     # These are relative to the 'scale' argument (which is the total arrow length)
-    fractional_shaft_radius = fixed_shaft_radius / arrow_length
-    fractional_tip_radius = fixed_tip_radius / arrow_length
+    fractional_shaft_radius = shaft_radius / arrow_length
+    fractional_tip_radius = tip_radius / arrow_length
 
     # Ensure tip length is not larger than arrow length (fractional)
-    tip_length = fixed_tip_length_ratio * arrow_length
+    tip_length = tip_length_ratio * arrow_length
 
     # Create the arrow mesh
     arrow_mesh = pv.Arrow(

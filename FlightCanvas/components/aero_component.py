@@ -10,7 +10,7 @@ import pyvista as pv
 from FlightCanvas.buildup_manager import BuildupManager
 
 
-def get_rel_alpha_beta(v_rel:  Union[np.ndarray, List[float]]):
+def get_rel_alpha_beta(v_rel: Union[np.ndarray, List[float]]):
     """
     Calculates the relative angle of attack (alpha) and sideslip angle (beta)
     from a local-frame relative velocity vector.
@@ -33,7 +33,7 @@ class AeroComponent(ABC):
                  ref_direction: Union[np.ndarray, List[float]],
                  control_pivot=None,
                  is_prime=True,
-                 symmetric_comp: Optional['AeroComponent'] = None,):
+                 symmetric_comp: Optional['AeroComponent'] = None, ):
         """
         :param name: The name of the component
         :param ref_direction: The primary axis of the component, used for rotation (e.g., hinge axis for a control surface)
@@ -99,7 +99,7 @@ class AeroComponent(ABC):
         # Transform inertial velocity into the vehicle's body frame
         v_B = C_B_I @ vel
 
-        T = self.get_transform()
+        T = self.static_transform_matrix
         R = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
 
         # Transform velocity from body frame to the component's local frame
@@ -114,7 +114,7 @@ class AeroComponent(ABC):
         else:
             # if the component is reflected around xz plane then use get_forces_and_moment_xz_plane function
             if self.symmetry_type == 'xz-plane':
-                F_b, M_b =self.get_forces_and_moment_xz_plane(alpha, beta, v_comp)
+                F_b, M_b = self.get_forces_and_moment_xz_plane(alpha, beta, v_comp)
             # if the component is rotated around x-axis then use get_forces_and_moment_x_axial function
             elif self.symmetry_type == 'x-radial':
                 F_b, M_b = self.get_forces_and_moment_x_axial(v_comp)
@@ -162,7 +162,6 @@ class AeroComponent(ABC):
         F_b = R_Body_Comp @ F_b_local
         M_b = R_Body_Comp @ M_b_local
         return F_b, M_b
-
 
     def init_buildup_manager(self, vehicle_path):
         """
@@ -296,28 +295,31 @@ class AeroComponent(ABC):
         self.update_dynamic_transform(state)
         self.pv_actor.user_matrix = self.dynamic_transform_matrix
 
-    def init_debug(self, pl: pv.Plotter, com: np.ndarray, sphere_radius=0.02, label=True):
+    def init_debug(self, pl: pv.Plotter, com: np.ndarray, size: float = 1.0, label=True):
         """
         Draws debug visuals for this component in a PyVista plotter
         :param pl: The `pyvista.Plotter` to draw on
         :param com: The vehicle's center of mass coordinates [x, y, z]
-        :param sphere_radius: The radius of the sphere marking the reference point
+        :param size: The size of the elements in the debug window
         :param label: If true, draw a label on this component
         """
+
+        default_sphere_radius = 0.02
+        sphere_radius = default_sphere_radius * 2 ** (size - 1)
 
         # Draw a sphere at the component's reference point
         sphere = pv.Sphere(radius=sphere_radius, center=self.xyz_ref)
         self.ref_actor = pl.add_mesh(sphere, color='red', show_edges=False, label=f"{self.asb_object.name} Ref")
 
         # Draw an arrow from the component's ref point to the vehicle's CoM
-        self.arrow_actor = utils.plot_arrow_from_points(pl, self.xyz_ref, com, color='grey')
+        self.arrow_actor = utils.plot_line_from_points(pl, self.xyz_ref, com, color='grey')
 
         # Add a text label at the reference point
         if label:
             self.label_actor = pl.add_point_labels(np.array([self.xyz_ref]), [f'{self.name}'])
 
-        self.ref_direction_actor = self.draw_ref_direction(pl)
-        self.control_pivot_actor = self.draw_control_pivot(pl)
+        self.ref_direction_actor = self.draw_ref_direction(pl, size=size)
+        self.control_pivot_actor = self.draw_control_pivot(pl, size=size)
 
     def update_debug(self, state: np.ndarray):
         """
@@ -361,20 +363,28 @@ class AeroComponent(ABC):
         """
         self.translate(xyz)
 
-    def draw_ref_direction(self, pl: pv.Plotter) -> pv.Actor:
+    def draw_ref_direction(self, pl: pv.Plotter, size: float = 1.0) -> pv.Actor:
         """
         Draws the component's `ref_direction` in a PyVista plot
         :param pl: The PyVista plotter to draw on
+        :param size: The size of the elements in the debug window
         """
-        return utils.draw_line_from_point_and_vector(pl, self.xyz_ref, self.ref_direction, color='green', line_width=4)
+        default_length = 1
+        length = default_length * 2 ** (size - 1)
+        return utils.draw_line_from_point_and_vector(pl, self.xyz_ref, self.ref_direction, color='green', line_width=4,
+                                                     length=length)
 
-    def draw_control_pivot(self, pl: pv.Plotter) -> Union[pv.Actor, None]:
+    def draw_control_pivot(self, pl: pv.Plotter, size: float = 1.0) -> Union[pv.Actor, None]:
         """
         Draws the component's `control_pivot` in a PyVista plot
         :param pl: The PyVista plotter to draw on
+        :param size: The size of the elements in the debug window
         """
+        default_length = 0.6
+        length = default_length * 2 ** (size - 1)
         if self.control_pivot is not None:
-            return utils.draw_line_from_point_and_vector(pl, self.xyz_ref, self.control_pivot, color='blue', line_width=4)
+            return utils.draw_line_from_point_and_vector(pl, self.xyz_ref, self.control_pivot, color='blue',
+                                                         line_width=6, length=length)
         return None
 
         # T = self.static_transform_matrix
@@ -385,7 +395,6 @@ class AeroComponent(ABC):
         # F_b = R_Body_Comp @ F_b_local
         # M_b = R_Body_Comp @ M_b_local
         # return F_b, M_b
-
 
     '''
     def get_forces_and_moment_lookup(self, v_B: np.ndarray) -> np.ndarray:

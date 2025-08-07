@@ -19,10 +19,10 @@ class AeroWing(AeroComponent):
             name: str,
             xsecs: List["asb.WingXSec"],
             ref_direction: Union[np.ndarray, List[float]],
-            control_pivot = None,
+            control_pivot=None,
             is_prime: bool = True,
             symmetric_comp: Optional['AeroComponent'] = None,
-            symmetry_type = None,
+            symmetry_type=None,
             **kwargs
     ):
         """
@@ -33,7 +33,8 @@ class AeroWing(AeroComponent):
         :param is_prime: Inherited from AeroComponent. Used to identify the primary wing in a symmetric pair
         :param kwargs:  Additional keyword arguments to be passed to the `aerosandbox.Wing` constructor
         """
-        super().__init__(name, ref_direction, control_pivot=control_pivot, is_prime=is_prime, symmetric_comp=symmetric_comp)
+        super().__init__(name, ref_direction, control_pivot=control_pivot, is_prime=is_prime,
+                         symmetric_comp=symmetric_comp)
 
         # Set translation
         self.set_translate(ref_direction)
@@ -66,6 +67,7 @@ def create_planar_wing_pair(
         xsecs: List["asb.WingXSec"],
         translation: Union[np.ndarray, List[float]] = (0, 0, 0),
         ref_direction: Union[np.ndarray, List[float]] = (1, 0, 0),
+        control_pivot=None,
         **kwargs
 ) -> List[AeroWing]:
     """
@@ -74,6 +76,7 @@ def create_planar_wing_pair(
     :param xsecs: A list of `aerosandbox.WingXSec` objects that define the wing's cross-sections
     :param translation: The new reference position [x, y, z]
     :param ref_direction: The primary axis for rotation, typically representing the hinge line of a control surface
+    :param control_pivot: The axis at which the component will rotate given a control input
     :param kwargs:  Additional keyword arguments to be passed to the `aerosandbox.Wing` constructor
     """
     # Create the right-hand wing wrapper from the provided cross-sections
@@ -81,6 +84,7 @@ def create_planar_wing_pair(
         name=f"{name}",
         xsecs=xsecs,
         ref_direction=ref_direction,
+        control_pivot=control_pivot,
         **kwargs
     )
 
@@ -104,6 +108,7 @@ def create_planar_wing_pair(
         name=f"{name} Star",
         xsecs=mirrored_xsecs,
         ref_direction=utils.flip_y(ref_direction),
+        control_pivot=utils.flip_y(control_pivot),
         is_prime=False,
         symmetric_comp=right_aero_wing,
         symmetry_type='xz-plane',
@@ -119,6 +124,7 @@ def create_planar_wing_pair(
     left_aero_wing.translate(left_translation)
 
     return [right_aero_wing, left_aero_wing]
+
 
 def create_axial_wing_pair(
         name: str,
@@ -156,7 +162,7 @@ def create_axial_wing_pair(
         R_Comp_Body = utils.rotate_z(angle_array[i + 1])
 
         new_wing = AeroWing(
-            name=f"{name} {i+1}",
+            name=f"{name} {i + 1}",
             xsecs=xsecs,
             ref_direction=R_Comp_Body @ ref_direction,
             control_pivot=R_Comp_Body @ control_pivot,
@@ -165,7 +171,7 @@ def create_axial_wing_pair(
             symmetry_type='x-radial',
             **kwargs
         ).translate(R_Comp_Body @ translation)
-        new_wing.radial_angle = angle_array[i+1]
+        new_wing.radial_angle = angle_array[i + 1]
         wing_array.append(new_wing)
 
     return wing_array

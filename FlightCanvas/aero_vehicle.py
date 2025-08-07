@@ -7,7 +7,6 @@ from FlightCanvas import utils
 import pathlib
 from scipy.integrate import solve_ivp
 
-
 from FlightCanvas.components.aero_component import AeroComponent
 
 
@@ -31,8 +30,8 @@ class AeroVehicle:
         """
         self.name = name
         self.xyz_ref = np.array(xyz_ref)
-        self.mass = 10  # TODO: change this
-        self.moi = 1 * self.mass * np.eye(3)  # TODO: change this
+        self.mass = 10
+        self.moi = self.mass * np.eye(3)
         self.components = components
 
         self.vehicle_path = f'vehicle_saves/{self.name}'
@@ -51,8 +50,26 @@ class AeroVehicle:
         # List of Debug Actors
         self.cg_sphere = None
 
-        # Update transformation matrices for all FlightCanvas
+        # Update transformation matrices for all components
+        self.update_transform()
+
+    def update_transform(self):
+        """
+        Update transformation matrices for all components
+        """
         [comp.update_transform() for comp in self.components]
+
+    def set_mass(self, mass: float):
+        """
+        Sets the mass of the vehicle
+        """
+        self.mass = mass
+
+    def set_moi_factor(self, moi_factor: float):
+        """
+        Sets the mass moment of inertia
+        """
+        self.moi = moi_factor * self.mass * np.eye(3)
 
     def compute_forces_and_moments_lookup(self, state: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -118,6 +135,8 @@ class AeroVehicle:
         quat = state[6:10]  # Orientation as a quaternion
         omega_B = state[10:13]  # Angular velocity in the body frame
 
+        print(f"  Time {t}\n")
+
         # Gravity in the inertial frame
         g = np.array([0, 0, -9.81])
         #g = np.array([0, 0, 0])
@@ -136,6 +155,26 @@ class AeroVehicle:
         omega_dot = np.linalg.inv(J_B) @ (M_B - np.cross(omega_B, J_B @ omega_B))
         quat_dot = 0.5 * utils.omega(omega_B) @ quat
         return np.concatenate((vel_I, v_dot, quat_dot, omega_dot))
+
+    def print_states(self, t_arr: np.ndarray, x_arr: np.ndarray):
+        """
+        :param t_arr: The time array
+        :param x_arr: The state array
+        """
+        for i in range(len(t_arr)):
+            t = t_arr[i]
+            state = x_arr[:, i]
+            pos_I = state[:3]  # Position in the inertial frame
+            vel_I = state[3:6]  # Velocity in the inertial frame
+            quat = state[6:10]  # Orientation as a quaternion
+            omega_B = state[10:13]  # Angular velocity in the body frame
+
+            print(f"  Time {t}")
+            print(f"  Position (Inertial): {pos_I}")
+            print(f"  Velocity (Inertial): {vel_I}")
+            print(f"  Quaternion: {quat}")
+            print(f"  Angular Velocity (Body): {omega_B}")
+            print("\n")
 
     def init_buildup_manager(self):
         """
@@ -199,11 +238,15 @@ class AeroVehicle:
         """
         [comp.update_actor(state) for comp in self.components]
 
-    def init_debug(self, sphere_radius=0.02, label=True):
+    def init_debug(self, size=1, label=True):
         """
         Draws debug visuals for the vehicle and its FlightCanvas
-        :param sphere_radius: The base radius for the debug spheres
+        :param size: The size of the elements in the debug window
+        :param label: If true, labels of the elements in the debug window
         """
+
+        default_sphere_radius = 0.02
+        sphere_radius = default_sphere_radius * 2 ** (size - 1)
 
         # Draw the vehicle's own reference point (e.g., Center of Gravity)
         sphere = pv.Sphere(radius=sphere_radius * 1.5, center=self.xyz_ref)
@@ -211,7 +254,7 @@ class AeroVehicle:
 
         # Instruct each component to draw its own debug visuals
         for component in self.components:
-            component.init_debug(self.pl, self.xyz_ref, sphere_radius=sphere_radius, label=label)
+            component.init_debug(self.pl, self.xyz_ref, size=size, label=label)
 
     def update_debug(self, state: np.ndarray):
         """
@@ -255,9 +298,11 @@ class AeroVehicle:
             if debug:
                 self.update_debug(state)
 
-            pos = state[:3]
+            quat = state[6:10]
+            C_B_I = utils.dir_cosine_np(quat)
+            pos = state[:3] + (C_B_I @ self.xyz_ref)
             self.pl.camera.focal_point = pos
-            cam_offset = 4 * np.array([-1, 1, 1])
+            cam_offset = 60 * np.array([-1, 1, 1])
             self.pl.camera.position = pos + cam_offset
 
             self.pl.render()
