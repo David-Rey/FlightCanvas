@@ -3,11 +3,11 @@
 import aerosandbox as asb
 import aerosandbox.numpy as np
 
-from components.aero_fuselage import AeroFuselage
-from components.aero_wing import create_planar_wing_pair, AeroWing
-from components.aero_vehicle import AeroVehicle
+from FlightCanvas.components.aero_fuselage import AeroFuselage
+from FlightCanvas.components.aero_wing import create_planar_wing_pair, AeroWing
+from FlightCanvas.aero_vehicle import AeroVehicle
 
-from components import utils
+from FlightCanvas import utils
 
 if __name__ == '__main__':
     # Define Airfoils
