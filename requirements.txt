@@ -1,0 +1,7 @@
+AeroSandbox==4.2.8
+casadi==3.7.1
+matplotlib==3.8.4
+numba==0.59.1
+numpy
+pyvista==0.44.2
+scipy==1.16.1

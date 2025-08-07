@@ -156,7 +156,7 @@ def create_axial_wing_pair(
         R_Comp_Body = utils.rotate_z(angle_array[i + 1])
 
         new_wing = AeroWing(
-            name=f"{name} Angle {angle_array[i+1]}",
+            name=f"{name} {i+1}",
             xsecs=xsecs,
             ref_direction=R_Comp_Body @ ref_direction,
             control_pivot=R_Comp_Body @ control_pivot,
