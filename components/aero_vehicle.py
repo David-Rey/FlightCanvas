@@ -3,7 +3,7 @@
 from typing import List, Union, Tuple
 import pyvista as pv
 import aerosandbox.numpy as np
-import utils
+from components import utils
 import pathlib
 from scipy.integrate import solve_ivp
 

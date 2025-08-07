@@ -39,7 +39,7 @@ animate = 1
 
 aero_vehicle.compute_buildup()
 aero_vehicle.save_buildup()
-#aero_vehicle.save_buildup_fig()
+aero_vehicle.save_buildup_fig()
 aero_vehicle.load_buildup()
 
 if animate:
