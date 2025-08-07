@@ -265,7 +265,7 @@ class AeroVehicle:
 
         self.pl.close()
 
-    def show(self, kwargs):
+    def show(self, **kwargs):
         """
         Displays the PyVista plotter window
         :param kwargs: Additional keyword arguments for pl.show()
