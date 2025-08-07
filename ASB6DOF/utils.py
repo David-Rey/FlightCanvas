@@ -420,6 +420,37 @@ def normalize_quaternion(q):
     norm = np.sqrt(np.sum(q ** 2))
     return q / norm
 
+def rotate_z(rotate_angle_deg):
+    """
+    Generate a Z-axis rotation matrix.
+    :param rotate_angle_deg: Rotation angle in degrees.
+    """
+    rotate_angle = np.deg2rad(rotate_angle_deg)
+    cos_phi, sin_phi = np.cos(rotate_angle), np.sin(rotate_angle)
+
+    R_Comp_Body = np.array([
+        [1, 0, 0],
+        [0, cos_phi, sin_phi],
+        [0, -sin_phi, cos_phi],
+    ])
+
+    return R_Comp_Body
+
+
+def interp_state(t_arr, x_arr, sim_time):
+    index = np.searchsorted(t_arr, sim_time) - 1
+    index = np.clip(index, 0, x_arr.shape[1] - 2)
+
+    t0 = t_arr[index]
+    t1 = t_arr[index + 1]
+    alpha = (sim_time - t0) / (t1 - t0)
+
+    # Interpolate state
+    state0 = x_arr[:, index]
+    state1 = x_arr[:, index + 1]
+    state = state0 + alpha * (state1 - state0)
+
+    return state
 
 '''
 def rotate_mesh_by_matrix(

@@ -11,22 +11,6 @@ from scipy.integrate import solve_ivp
 from components.aero_component import AeroComponent
 
 
-def interp_state(t_arr, x_arr, sim_time):
-    index = np.searchsorted(t_arr, sim_time) - 1
-    index = np.clip(index, 0, x_arr.shape[1] - 2)
-
-    t0 = t_arr[index]
-    t1 = t_arr[index + 1]
-    alpha = (sim_time - t0) / (t1 - t0)
-
-    # Interpolate state
-    state0 = x_arr[:, index]
-    state1 = x_arr[:, index + 1]
-    state = state0 + alpha * (state1 - state0)
-
-    return state
-
-
 class AeroVehicle:
     """
     Represents a complete aerodynamic vehicle composed of various components.
@@ -102,25 +86,33 @@ class AeroVehicle:
                     component.update_transform(rotation=control[i])
                     break  # Move to the next surface name once found
 
-    def run_sim(self, tf):
+    def run_sim(self, pos_0, vel_0, quat_0, omega_0, tf, N=500) -> Tuple[np.ndarray, np.ndarray]:
         """
-        TODO
+        Runs simulation of 6 Degree of Freedom model with no control
+        :param: pos_0: The initial position [x, y, z] (m)
+        :param: vel_0: The initial velocity [x, y, z] (m/s)
+        :param: quat_0: The initial quaternion [q0, q1, q2, q3]
+        :param: omega_0: The initial omega [x, y, z] (rad/s)
+        :param: tf: The time of simulation (s)
+        :param: N: The number of simulation steps
+        :return: The time and state for every simulation step
         """
         # Initial state
-        pos_0 = np.array([0, 0, 950])  # Initial position
-        vel_0 = np.array([100, 0, 0.01])  # Initial velocity
-        quat_0 = utils.euler_to_quat((0, 0, 0))
-        omega_0 = np.array([0, 0, 0])  # Initial angular velocity
-
         state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
 
         # Time span for the simulation
         t_span = (0, tf)  # Simulate for 10 seconds
-        t_eval = np.linspace(t_span[0], t_span[1], 500)  # Time points for output
+        t_eval = np.linspace(t_span[0], t_span[1], N)  # Time points for output
         solution = solve_ivp(self.dynamics_6DOF, t_span, state_0, t_eval=t_eval, rtol=1e-5, atol=1e-5)
         return t_eval, solution['y']
 
-    def dynamics_6DOF(self, t: float, state: np.ndarray):
+    def dynamics_6DOF(self, t: float, state: np.ndarray) -> np.ndarray:
+        """
+        Propagates 6 Degree of Freedom dynamics and returns the derivative of the state vector (x_dot)
+        :param t: The current time
+        :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
+        :return: The derivative of the state vector (x_dot)
+        """
         pos_I = state[:3]  # Position in the inertial frame
         vel_I = state[3:6]  # Velocity in the inertial frame
         quat = state[6:10]  # Orientation as a quaternion
@@ -231,6 +223,9 @@ class AeroVehicle:
     def animate(self, t_arr: np.ndarray, x_arr: np.ndarray, debug=False):
         """
         Animates the aerodynamic visuals for all components
+        :param t_arr: The time array
+        :param x_arr: The state array
+        :param debug: If true, draws debug visuals
         """
         grid = pv.Plane(
             center=(0, 0, 0),  # Center of the plane
@@ -252,7 +247,7 @@ class AeroVehicle:
 
         for i in range(num_frames):
             sim_time = dt * i
-            state = interp_state(t_arr, x_arr, sim_time)
+            state = utils.interp_state(t_arr, x_arr, sim_time)
             state[0] = -state[0]
 
             # Update actors with interpolated state
@@ -270,14 +265,21 @@ class AeroVehicle:
 
         self.pl.close()
 
-    def show(self):
+    def show(self, kwargs):
         """
         Displays the PyVista plotter window
+        :param kwargs: Additional keyword arguments for pl.show()
         """
         self.pl.add_axes_at_origin(labels_off=True)
-        self.pl.show()
+        self.pl.show(**kwargs)
 
 
+# print(f"  Time {t}")
+# print(f"  Position (Inertial): {pos_I}")
+# print(f"  Velocity (Inertial): {vel_I}")
+# print(f"  Quaternion: {quat}")
+# print(f"  Angular Velocity (Body): {omega_B}")
+# print("\n")
 
 '''
 def draw_buildup(self, name: str, ID: str, **kwargs):

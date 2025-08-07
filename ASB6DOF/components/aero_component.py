@@ -38,7 +38,7 @@ class AeroComponent(ABC):
         """
         :param name: The name of the component
         :param ref_direction: The primary axis of the component, used for rotation (e.g., hinge axis for a control surface)
-        :param control_pivot: TODO
+        :param control_pivot: The axis at which the component will rotate given a control input
         :param is_prime: Flag to indicate if this is a primary component. If False, control surface rotations are inverted
         :param symmetric_comp: The AeroComponent object that is symmetric to the current AeroComponent object
         """
@@ -113,14 +113,12 @@ class AeroComponent(ABC):
         if self.is_prime:
             F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, v_comp)
         else:
-
             # if the component is reflected around xz plane then use get_forces_and_moment_xz_plane function
             if self.symmetry_type == 'xz-plane':
                 F_b, M_b =self.get_forces_and_moment_xz_plane(alpha, beta, v_comp)
-
-            # if the component is rotated around x-axis then use ~~~ function
+            # if the component is rotated around x-axis then use get_forces_and_moment_x_axial function
             elif self.symmetry_type == 'x-radial':
-                raise NotImplementedError
+                F_b, M_b = self.get_forces_and_moment_x_axial(v_comp)
             else:
                 raise ValueError("self.symmetry_type needed to be either 'xz-plane' or 'x-radial'")
 
@@ -134,12 +132,13 @@ class AeroComponent(ABC):
         M_b_total = M_b + M_b_cross
         return F_b, M_b_total
 
-    def get_forces_and_moment_xz_plane(self, alpha, beta, v_comp):
+    def get_forces_and_moment_xz_plane(self, alpha, beta, v_comp) -> Tuple[np.ndarray, np.ndarray]:
         """
         Returns the forces and moments from buildup data for components that are reflected in the xz plane.
         :param alpha: Angle of attack of component
         :param beta: Side slip angle of component
         :param v_comp: Velocity of component
+        :return: Forces and moments from buildup data for components that are reflected in the xz plane
         """
         F_b, M_b = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, -beta, v_comp)
         F_b[1] = -F_b[1]
@@ -147,10 +146,30 @@ class AeroComponent(ABC):
         M_b[2] = -M_b[2]
         return F_b, M_b
 
-    def get_forces_and_moment_x_axial(self, alpha, beta, v_comp):
-        pass
+    def get_forces_and_moment_x_axial(self, v_comp) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Returns the forces and moments from buildup data for components that are rotated around the x-axis.
+        :param v_comp: Velocity of component
+        :return: Forces and moments from buildup data for components that are reflected in the xz plane
+        """
+
+        T = self.static_transform_matrix
+        R_Comp_Body = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
+        R_Body_Comp = R_Comp_Body.T
+
+        alpha, beta = get_rel_alpha_beta(v_comp)
+
+        F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, beta, v_comp)
+        F_b = R_Body_Comp @ F_b_local
+        M_b = R_Body_Comp @ M_b_local
+        return F_b, M_b
+
 
     def init_buildup_manager(self, vehicle_path):
+        """
+        Adds buildup manager that holds aerodynamic forces and moments to object
+        :param vehicle_path: The path to the buildup manager file
+        """
         if self.is_prime:
             self.buildup_manager = BuildupManager(self.name, vehicle_path)
 
@@ -181,6 +200,9 @@ class AeroComponent(ABC):
             self.buildup_manager.save_buildup_figs()
 
     def load_buildup(self):
+        """
+        Loads buildup that holds aerodynamic forces and moments to object
+        """
         if self.is_prime:
             self.buildup_manager.load_buildup()
 
@@ -201,8 +223,6 @@ class AeroComponent(ABC):
             self.generate_mesh()
 
         self.pv_actor = pl.add_mesh(self.mesh, **kwargs)
-
-        #self.update_transform()
 
         # The user_matrix allows for efficient transformation of the actor
         self.pv_actor.user_matrix = self.static_transform_matrix
@@ -254,7 +274,8 @@ class AeroComponent(ABC):
 
     def update_dynamic_transform(self, state: np.ndarray):
         """
-        TODO
+        Updates the component's dynamic transformation matrix used for animation
+        :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
         """
 
         pos_I = state[:3]  # Position in the inertial frame
@@ -271,10 +292,10 @@ class AeroComponent(ABC):
     def update_actor(self, state: np.ndarray):
         """
         Updates the PyVista actor's transformation matrix in the 3D scene
+        :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
         """
         self.update_dynamic_transform(state)
         self.pv_actor.user_matrix = self.dynamic_transform_matrix
-
 
     def init_debug(self, pl: pv.Plotter, com: np.ndarray, sphere_radius=0.02, label=True):
         """
@@ -301,7 +322,8 @@ class AeroComponent(ABC):
 
     def update_debug(self, state: np.ndarray):
         """
-        TODO
+        Updates debug visuals for this component in a PyVista plotter
+        :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
         """
         pos_inertial = state[:3]
         quat = state[6:10]
@@ -355,6 +377,16 @@ class AeroComponent(ABC):
         if self.control_pivot is not None:
             return utils.draw_line_from_point_and_vector(pl, self.xyz_ref, self.control_pivot, color='blue', line_width=4)
         return None
+
+        # T = self.static_transform_matrix
+        # R_Comp_Body = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
+        # R_Body_Comp = R_Comp_Body.T
+
+        # F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, beta, v_comp)
+        # F_b = R_Body_Comp @ F_b_local
+        # M_b = R_Body_Comp @ M_b_local
+        # return F_b, M_b
+
 
     '''
     def get_forces_and_moment_lookup(self, v_B: np.ndarray) -> np.ndarray:

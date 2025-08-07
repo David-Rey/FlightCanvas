@@ -7,6 +7,7 @@ from components.aero_fuselage import AeroFuselage
 from components.aero_wing import create_planar_wing_pair, AeroWing
 from aero_vehicle import AeroVehicle
 
+import utils
 
 if __name__ == '__main__':
     # Define Airfoils
@@ -78,7 +79,7 @@ if __name__ == '__main__':
     )
 
     # DEBUG
-    animate = 0
+    animate = 1
 
     aero_vehicle.compute_buildup()
     aero_vehicle.save_buildup()
@@ -86,7 +87,13 @@ if __name__ == '__main__':
     aero_vehicle.load_buildup()
 
     if animate:
-        t_arr, x_arr = aero_vehicle.run_sim(40)
+        pos_0 = np.array([0, 0, 950])  # Initial position
+        vel_0 = np.array([100, 0, 0.01])  # Initial velocity
+        quat_0 = utils.euler_to_quat((0, 0, 0))
+        omega_0 = np.array([0, 0, 0])  # Initial angular velocity
+        tf = 40
+
+        t_arr, x_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
         aero_vehicle.animate(t_arr, x_arr)
     else:
