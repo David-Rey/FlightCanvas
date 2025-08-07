@@ -77,15 +77,16 @@ int main()
     x_current[11] = 0.0;
     x_current[12] = 0.0;
     x_current[13] = 0.0;
+    x_current[14] = 0.0;
 
   
-    x_current[0] = 500;
-    x_current[1] = 50;
-    x_current[2] = 25;
+    x_current[0] = 400;
+    x_current[1] = 0;
+    x_current[2] = 30;
     x_current[3] = 100;
-    x_current[4] = -10;
-    x_current[5] = -5;
-    x_current[6] = -25;
+    x_current[4] = 0;
+    x_current[5] = -15;
+    x_current[6] = -20;
     x_current[7] = 1;
     x_current[8] = 0;
     x_current[9] = 0;
@@ -94,6 +95,7 @@ int main()
     x_current[12] = 0;
     x_current[13] = 0;
     
+    printf("main_sim: NOTE: initial state not fully defined via lbx_0, using 0.0 for indices that are not in idxbx_0.");
   
 
 

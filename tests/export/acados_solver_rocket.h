@@ -36,18 +36,18 @@
 #include "acados_c/ocp_nlp_interface.h"
 #include "acados_c/external_function_interface.h"
 
-#define ROCKET_NX     14
+#define ROCKET_NX     15
 #define ROCKET_NZ     0
 #define ROCKET_NU     3
 #define ROCKET_NP     0
 #define ROCKET_NP_GLOBAL     0
-#define ROCKET_NBX    0
+#define ROCKET_NBX    2
 #define ROCKET_NBX0   14
 #define ROCKET_NBU    0
 #define ROCKET_NSBX   0
 #define ROCKET_NSBU   0
-#define ROCKET_NSH    0
-#define ROCKET_NSH0   0
+#define ROCKET_NSH    6
+#define ROCKET_NSH0   6
 #define ROCKET_NSG    0
 #define ROCKET_NSPHI  0
 #define ROCKET_NSHN   0
@@ -55,19 +55,19 @@
 #define ROCKET_NSPHIN 0
 #define ROCKET_NSPHI0 0
 #define ROCKET_NSBXN  0
-#define ROCKET_NS     0
-#define ROCKET_NS0    0
+#define ROCKET_NS     6
+#define ROCKET_NS0    6
 #define ROCKET_NSN    0
 #define ROCKET_NG     0
-#define ROCKET_NBXN   0
+#define ROCKET_NBXN   13
 #define ROCKET_NGN    0
-#define ROCKET_NY0    17
-#define ROCKET_NY     17
-#define ROCKET_NYN    14
+#define ROCKET_NY0    18
+#define ROCKET_NY     18
+#define ROCKET_NYN    15
 #define ROCKET_N      100
-#define ROCKET_NH     5
+#define ROCKET_NH     6
 #define ROCKET_NHN    0
-#define ROCKET_NH0    0
+#define ROCKET_NH0    6
 #define ROCKET_NPHI0  0
 #define ROCKET_NPHI   0
 #define ROCKET_NPHIN  0
@@ -102,7 +102,6 @@ typedef struct rocket_solver_capsule
     external_function_external_param_casadi *expl_ode_fun;
     external_function_external_param_casadi *expl_vde_adj;
 
-    external_function_external_param_casadi *expl_ode_hess;
 
 
 
@@ -116,10 +115,13 @@ typedef struct rocket_solver_capsule
     // constraints
     external_function_external_param_casadi *nl_constr_h_fun_jac;
     external_function_external_param_casadi *nl_constr_h_fun;
-    external_function_external_param_casadi *nl_constr_h_fun_jac_hess;
 
 
 
+
+
+    external_function_external_param_casadi nl_constr_h_0_fun_jac;
+    external_function_external_param_casadi nl_constr_h_0_fun;
 
 
 

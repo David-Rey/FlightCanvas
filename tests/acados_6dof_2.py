@@ -137,6 +137,7 @@ def main():
     """
     ocp = AcadosOcp()
     ocp.model = create_rocket_model()
+    ocp.code_export_directory = 'tests/export'
 
     # --- Horizon and Solver Settings ---
     N = 100
@@ -253,7 +254,8 @@ def main():
     ocp.solver_options.qp_solver_cond_N = N
 
     # --- Create and Run Solver ---
-    ocp_solver = AcadosOcpSolver(ocp, json_file='acados_ocp_rocket_free_time.json')
+    #ocp_solver = AcadosOcpSolver(ocp, json_file='test/acados_ocp_rocket_free_time.json')
+    ocp_solver = AcadosOcpSolver(ocp)
 
     # --- Initialize Trajectory ---
     # 1. Create guess for physical states
@@ -358,9 +360,9 @@ def main():
     ax_u.legend()
     ax_u.grid(True)
 
-    fig.savefig('rocket_trajectory_3d.png')
-    fig2.savefig('rocket_states.png')
-    fig3.savefig('rocket_controls.png')
+    fig.savefig('tests/figs/rocket_trajectory_3d.png')
+    fig2.savefig('tests/figs/rocket_states.png')
+    fig3.savefig('tests/figs/rocket_controls.png')
 
     plt.show()
     #plt.close('all')  # Close all figures to free up memory

@@ -243,7 +243,7 @@ static ocp_nlp_dims* rocket_acados_create_setup_dimensions(rocket_solver_capsule
     nsbx[0] = 0;
     ns[0] = NS0;
     
-    nbxe[0] = 14;
+    nbxe[0] = 0;
     
     ny[0] = NY0;
     nh[0] = NH0;
@@ -340,6 +340,8 @@ void rocket_acados_create_setup_functions(rocket_solver_capsule* capsule)
 
 
     ext_fun_opts.external_workspace = true;
+    MAP_CASADI_FNC(nl_constr_h_0_fun_jac, rocket_constr_h_0_fun_jac_uxt_zt);
+    MAP_CASADI_FNC(nl_constr_h_0_fun, rocket_constr_h_0_fun);
     // constraints.constr_type == "BGH" and dims.nh > 0
     capsule->nl_constr_h_fun_jac = (external_function_external_param_casadi *) malloc(sizeof(external_function_external_param_casadi)*(N-1));
     for (int i = 0; i < N-1; i++) {
@@ -348,10 +350,6 @@ void rocket_acados_create_setup_functions(rocket_solver_capsule* capsule)
     capsule->nl_constr_h_fun = (external_function_external_param_casadi *) malloc(sizeof(external_function_external_param_casadi)*(N-1));
     for (int i = 0; i < N-1; i++) {
         MAP_CASADI_FNC(nl_constr_h_fun[i], rocket_constr_h_fun);
-    }
-    capsule->nl_constr_h_fun_jac_hess = (external_function_external_param_casadi *) malloc(sizeof(external_function_external_param_casadi)*(N-1));
-    for (int i = 0; i < N-1; i++) {
-        MAP_CASADI_FNC(nl_constr_h_fun_jac_hess[i], rocket_constr_h_fun_jac_uxt_zt_hess);
     }
 
 
@@ -372,10 +370,6 @@ void rocket_acados_create_setup_functions(rocket_solver_capsule* capsule)
     capsule->expl_vde_adj = (external_function_external_param_casadi *) malloc(sizeof(external_function_external_param_casadi)*N);
     for (int i = 0; i < N; i++) {
         MAP_CASADI_FNC(expl_vde_adj[i], rocket_expl_vde_adj);
-    }
-    capsule->expl_ode_hess = (external_function_external_param_casadi *) malloc(sizeof(external_function_external_param_casadi)*N);
-    for (int i = 0; i < N; i++) {
-        MAP_CASADI_FNC(expl_ode_hess[i], rocket_expl_ode_hess);
     }
 
 
@@ -428,113 +422,113 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
     {
         // set time_steps
     
-        double time_step = 0.15;
+        double time_step = 0.01;
         for (int i = 0; i < N; i++)
         {
             ocp_nlp_in_set(nlp_config, nlp_dims, nlp_in, i, "Ts", &time_step);
         }
         // set cost scaling
         double* cost_scaling = malloc((N+1)*sizeof(double));
-        cost_scaling[0] = 0.15;
-        cost_scaling[1] = 0.15;
-        cost_scaling[2] = 0.15;
-        cost_scaling[3] = 0.15;
-        cost_scaling[4] = 0.15;
-        cost_scaling[5] = 0.15;
-        cost_scaling[6] = 0.15;
-        cost_scaling[7] = 0.15;
-        cost_scaling[8] = 0.15;
-        cost_scaling[9] = 0.15;
-        cost_scaling[10] = 0.15;
-        cost_scaling[11] = 0.15;
-        cost_scaling[12] = 0.15;
-        cost_scaling[13] = 0.15;
-        cost_scaling[14] = 0.15;
-        cost_scaling[15] = 0.15;
-        cost_scaling[16] = 0.15;
-        cost_scaling[17] = 0.15;
-        cost_scaling[18] = 0.15;
-        cost_scaling[19] = 0.15;
-        cost_scaling[20] = 0.15;
-        cost_scaling[21] = 0.15;
-        cost_scaling[22] = 0.15;
-        cost_scaling[23] = 0.15;
-        cost_scaling[24] = 0.15;
-        cost_scaling[25] = 0.15;
-        cost_scaling[26] = 0.15;
-        cost_scaling[27] = 0.15;
-        cost_scaling[28] = 0.15;
-        cost_scaling[29] = 0.15;
-        cost_scaling[30] = 0.15;
-        cost_scaling[31] = 0.15;
-        cost_scaling[32] = 0.15;
-        cost_scaling[33] = 0.15;
-        cost_scaling[34] = 0.15;
-        cost_scaling[35] = 0.15;
-        cost_scaling[36] = 0.15;
-        cost_scaling[37] = 0.15;
-        cost_scaling[38] = 0.15;
-        cost_scaling[39] = 0.15;
-        cost_scaling[40] = 0.15;
-        cost_scaling[41] = 0.15;
-        cost_scaling[42] = 0.15;
-        cost_scaling[43] = 0.15;
-        cost_scaling[44] = 0.15;
-        cost_scaling[45] = 0.15;
-        cost_scaling[46] = 0.15;
-        cost_scaling[47] = 0.15;
-        cost_scaling[48] = 0.15;
-        cost_scaling[49] = 0.15;
-        cost_scaling[50] = 0.15;
-        cost_scaling[51] = 0.15;
-        cost_scaling[52] = 0.15;
-        cost_scaling[53] = 0.15;
-        cost_scaling[54] = 0.15;
-        cost_scaling[55] = 0.15;
-        cost_scaling[56] = 0.15;
-        cost_scaling[57] = 0.15;
-        cost_scaling[58] = 0.15;
-        cost_scaling[59] = 0.15;
-        cost_scaling[60] = 0.15;
-        cost_scaling[61] = 0.15;
-        cost_scaling[62] = 0.15;
-        cost_scaling[63] = 0.15;
-        cost_scaling[64] = 0.15;
-        cost_scaling[65] = 0.15;
-        cost_scaling[66] = 0.15;
-        cost_scaling[67] = 0.15;
-        cost_scaling[68] = 0.15;
-        cost_scaling[69] = 0.15;
-        cost_scaling[70] = 0.15;
-        cost_scaling[71] = 0.15;
-        cost_scaling[72] = 0.15;
-        cost_scaling[73] = 0.15;
-        cost_scaling[74] = 0.15;
-        cost_scaling[75] = 0.15;
-        cost_scaling[76] = 0.15;
-        cost_scaling[77] = 0.15;
-        cost_scaling[78] = 0.15;
-        cost_scaling[79] = 0.15;
-        cost_scaling[80] = 0.15;
-        cost_scaling[81] = 0.15;
-        cost_scaling[82] = 0.15;
-        cost_scaling[83] = 0.15;
-        cost_scaling[84] = 0.15;
-        cost_scaling[85] = 0.15;
-        cost_scaling[86] = 0.15;
-        cost_scaling[87] = 0.15;
-        cost_scaling[88] = 0.15;
-        cost_scaling[89] = 0.15;
-        cost_scaling[90] = 0.15;
-        cost_scaling[91] = 0.15;
-        cost_scaling[92] = 0.15;
-        cost_scaling[93] = 0.15;
-        cost_scaling[94] = 0.15;
-        cost_scaling[95] = 0.15;
-        cost_scaling[96] = 0.15;
-        cost_scaling[97] = 0.15;
-        cost_scaling[98] = 0.15;
-        cost_scaling[99] = 0.15;
+        cost_scaling[0] = 0.01;
+        cost_scaling[1] = 0.01;
+        cost_scaling[2] = 0.01;
+        cost_scaling[3] = 0.01;
+        cost_scaling[4] = 0.01;
+        cost_scaling[5] = 0.01;
+        cost_scaling[6] = 0.01;
+        cost_scaling[7] = 0.01;
+        cost_scaling[8] = 0.01;
+        cost_scaling[9] = 0.01;
+        cost_scaling[10] = 0.01;
+        cost_scaling[11] = 0.01;
+        cost_scaling[12] = 0.01;
+        cost_scaling[13] = 0.01;
+        cost_scaling[14] = 0.01;
+        cost_scaling[15] = 0.01;
+        cost_scaling[16] = 0.01;
+        cost_scaling[17] = 0.01;
+        cost_scaling[18] = 0.01;
+        cost_scaling[19] = 0.01;
+        cost_scaling[20] = 0.01;
+        cost_scaling[21] = 0.01;
+        cost_scaling[22] = 0.01;
+        cost_scaling[23] = 0.01;
+        cost_scaling[24] = 0.01;
+        cost_scaling[25] = 0.01;
+        cost_scaling[26] = 0.01;
+        cost_scaling[27] = 0.01;
+        cost_scaling[28] = 0.01;
+        cost_scaling[29] = 0.01;
+        cost_scaling[30] = 0.01;
+        cost_scaling[31] = 0.01;
+        cost_scaling[32] = 0.01;
+        cost_scaling[33] = 0.01;
+        cost_scaling[34] = 0.01;
+        cost_scaling[35] = 0.01;
+        cost_scaling[36] = 0.01;
+        cost_scaling[37] = 0.01;
+        cost_scaling[38] = 0.01;
+        cost_scaling[39] = 0.01;
+        cost_scaling[40] = 0.01;
+        cost_scaling[41] = 0.01;
+        cost_scaling[42] = 0.01;
+        cost_scaling[43] = 0.01;
+        cost_scaling[44] = 0.01;
+        cost_scaling[45] = 0.01;
+        cost_scaling[46] = 0.01;
+        cost_scaling[47] = 0.01;
+        cost_scaling[48] = 0.01;
+        cost_scaling[49] = 0.01;
+        cost_scaling[50] = 0.01;
+        cost_scaling[51] = 0.01;
+        cost_scaling[52] = 0.01;
+        cost_scaling[53] = 0.01;
+        cost_scaling[54] = 0.01;
+        cost_scaling[55] = 0.01;
+        cost_scaling[56] = 0.01;
+        cost_scaling[57] = 0.01;
+        cost_scaling[58] = 0.01;
+        cost_scaling[59] = 0.01;
+        cost_scaling[60] = 0.01;
+        cost_scaling[61] = 0.01;
+        cost_scaling[62] = 0.01;
+        cost_scaling[63] = 0.01;
+        cost_scaling[64] = 0.01;
+        cost_scaling[65] = 0.01;
+        cost_scaling[66] = 0.01;
+        cost_scaling[67] = 0.01;
+        cost_scaling[68] = 0.01;
+        cost_scaling[69] = 0.01;
+        cost_scaling[70] = 0.01;
+        cost_scaling[71] = 0.01;
+        cost_scaling[72] = 0.01;
+        cost_scaling[73] = 0.01;
+        cost_scaling[74] = 0.01;
+        cost_scaling[75] = 0.01;
+        cost_scaling[76] = 0.01;
+        cost_scaling[77] = 0.01;
+        cost_scaling[78] = 0.01;
+        cost_scaling[79] = 0.01;
+        cost_scaling[80] = 0.01;
+        cost_scaling[81] = 0.01;
+        cost_scaling[82] = 0.01;
+        cost_scaling[83] = 0.01;
+        cost_scaling[84] = 0.01;
+        cost_scaling[85] = 0.01;
+        cost_scaling[86] = 0.01;
+        cost_scaling[87] = 0.01;
+        cost_scaling[88] = 0.01;
+        cost_scaling[89] = 0.01;
+        cost_scaling[90] = 0.01;
+        cost_scaling[91] = 0.01;
+        cost_scaling[92] = 0.01;
+        cost_scaling[93] = 0.01;
+        cost_scaling[94] = 0.01;
+        cost_scaling[95] = 0.01;
+        cost_scaling[96] = 0.01;
+        cost_scaling[97] = 0.01;
+        cost_scaling[98] = 0.01;
+        cost_scaling[99] = 0.01;
         cost_scaling[100] = 1;
         for (int i = 0; i <= N; i++)
         {
@@ -551,7 +545,6 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
         ocp_nlp_dynamics_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, i, "expl_vde_forw", &capsule->expl_vde_forw[i]);
         ocp_nlp_dynamics_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, i, "expl_ode_fun", &capsule->expl_ode_fun[i]);
         ocp_nlp_dynamics_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, i, "expl_vde_adj", &capsule->expl_vde_adj[i]);
-        ocp_nlp_dynamics_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, i, "expl_ode_hess", &capsule->expl_ode_hess[i]);
     }
 
     /**** Cost ****/
@@ -563,12 +556,6 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
 
    double* W_0 = calloc(NY0*NY0, sizeof(double));
     // change only the non-zero elements:
-    W_0[1+(NY0) * 1] = 5;
-    W_0[2+(NY0) * 2] = 5;
-    W_0[3+(NY0) * 3] = 10;
-    W_0[4+(NY0) * 4] = 2;
-    W_0[5+(NY0) * 5] = 2;
-    W_0[6+(NY0) * 6] = 5;
     W_0[7+(NY0) * 7] = 0.1;
     W_0[8+(NY0) * 8] = 0.1;
     W_0[9+(NY0) * 9] = 0.1;
@@ -576,9 +563,6 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
     W_0[11+(NY0) * 11] = 0.1;
     W_0[12+(NY0) * 12] = 0.1;
     W_0[13+(NY0) * 13] = 0.1;
-    W_0[14+(NY0) * 14] = 0.001;
-    W_0[15+(NY0) * 15] = 0.001;
-    W_0[16+(NY0) * 16] = 0.001;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "W", W_0);
     free(W_0);
     double* Vx_0 = calloc(NY0*NX, sizeof(double));
@@ -597,13 +581,14 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
     Vx_0[11+(NY0) * 11] = 1;
     Vx_0[12+(NY0) * 12] = 1;
     Vx_0[13+(NY0) * 13] = 1;
+    Vx_0[14+(NY0) * 14] = 1;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "Vx", Vx_0);
     free(Vx_0);
     double* Vu_0 = calloc(NY0*NU, sizeof(double));
     // change only the non-zero elements:
-    Vu_0[14+(NY0) * 0] = 1;
-    Vu_0[15+(NY0) * 1] = 1;
-    Vu_0[16+(NY0) * 2] = 1;
+    Vu_0[15+(NY0) * 0] = 1;
+    Vu_0[16+(NY0) * 1] = 1;
+    Vu_0[17+(NY0) * 2] = 1;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "Vu", Vu_0);
     free(Vu_0);
     double* yref = calloc(NY, sizeof(double));
@@ -617,12 +602,6 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
     free(yref);
     double* W = calloc(NY*NY, sizeof(double));
     // change only the non-zero elements:
-    W[1+(NY) * 1] = 5;
-    W[2+(NY) * 2] = 5;
-    W[3+(NY) * 3] = 10;
-    W[4+(NY) * 4] = 2;
-    W[5+(NY) * 5] = 2;
-    W[6+(NY) * 6] = 5;
     W[7+(NY) * 7] = 0.1;
     W[8+(NY) * 8] = 0.1;
     W[9+(NY) * 9] = 0.1;
@@ -630,9 +609,6 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
     W[11+(NY) * 11] = 0.1;
     W[12+(NY) * 12] = 0.1;
     W[13+(NY) * 13] = 0.1;
-    W[14+(NY) * 14] = 0.001;
-    W[15+(NY) * 15] = 0.001;
-    W[16+(NY) * 16] = 0.001;
 
     for (int i = 1; i < N; i++)
     {
@@ -655,6 +631,7 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
     Vx[11+(NY) * 11] = 1;
     Vx[12+(NY) * 12] = 1;
     Vx[13+(NY) * 13] = 1;
+    Vx[14+(NY) * 14] = 1;
     for (int i = 1; i < N; i++)
     {
         ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "Vx", Vx);
@@ -664,9 +641,9 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
     
     double* Vu = calloc(NY*NU, sizeof(double));
     // change only the non-zero elements:
-    Vu[14+(NY) * 0] = 1;
-    Vu[15+(NY) * 1] = 1;
-    Vu[16+(NY) * 2] = 1;
+    Vu[15+(NY) * 0] = 1;
+    Vu[16+(NY) * 1] = 1;
+    Vu[17+(NY) * 2] = 1;
 
     for (int i = 1; i < N; i++)
     {
@@ -675,25 +652,13 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
     free(Vu);
     double* yref_e = calloc(NYN, sizeof(double));
     // change only the non-zero elements:
-    yref_e[7] = 1;
+    yref_e[0] = 400;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, N, "yref", yref_e);
     free(yref_e);
 
     double* W_e = calloc(NYN*NYN, sizeof(double));
     // change only the non-zero elements:
-    W_e[1+(NYN) * 1] = 500;
-    W_e[2+(NYN) * 2] = 500;
-    W_e[3+(NYN) * 3] = 1000;
-    W_e[4+(NYN) * 4] = 500;
-    W_e[5+(NYN) * 5] = 500;
-    W_e[6+(NYN) * 6] = 1000;
-    W_e[7+(NYN) * 7] = 100;
-    W_e[8+(NYN) * 8] = 100;
-    W_e[9+(NYN) * 9] = 100;
-    W_e[10+(NYN) * 10] = 100;
-    W_e[11+(NYN) * 11] = 100;
-    W_e[12+(NYN) * 12] = 100;
-    W_e[13+(NYN) * 13] = 100;
+    W_e[0+(NYN) * 0] = 100;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, N, "W", W_e);
     free(W_e);
     double* Vx_e = calloc(NYN*NX, sizeof(double));
@@ -712,12 +677,67 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
     Vx_e[11+(NYN) * 11] = 1;
     Vx_e[12+(NYN) * 12] = 1;
     Vx_e[13+(NYN) * 13] = 1;
+    Vx_e[14+(NYN) * 14] = 1;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, N, "Vx", Vx_e);
     free(Vx_e);
 
 
 
 
+    // slacks initial
+    double* zlu0_mem = calloc(4*NS0, sizeof(double));
+    double* Zl_0 = zlu0_mem+NS0*0;
+    double* Zu_0 = zlu0_mem+NS0*1;
+    double* zl_0 = zlu0_mem+NS0*2;
+    double* zu_0 = zlu0_mem+NS0*3;
+
+    // change only the non-zero elements:
+    zl_0[0] = 100;
+    zl_0[1] = 100;
+    zl_0[2] = 100;
+    zl_0[3] = 100;
+    zl_0[4] = 100;
+    zl_0[5] = 100;
+    zu_0[0] = 100;
+    zu_0[1] = 100;
+    zu_0[2] = 100;
+    zu_0[3] = 100;
+    zu_0[4] = 100;
+    zu_0[5] = 100;
+
+    ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "Zl", Zl_0);
+    ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "Zu", Zu_0);
+    ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "zl", zl_0);
+    ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "zu", zu_0);
+    free(zlu0_mem);
+    // slacks
+    double* zlumem = calloc(4*NS, sizeof(double));
+    double* Zl = zlumem+NS*0;
+    double* Zu = zlumem+NS*1;
+    double* zl = zlumem+NS*2;
+    double* zu = zlumem+NS*3;
+    // change only the non-zero elements:
+    zl[0] = 100;
+    zl[1] = 100;
+    zl[2] = 100;
+    zl[3] = 100;
+    zl[4] = 100;
+    zl[5] = 100;
+    zu[0] = 100;
+    zu[1] = 100;
+    zu[2] = 100;
+    zu[3] = 100;
+    zu[4] = 100;
+    zu[5] = 100;
+
+    for (int i = 1; i < N; i++)
+    {
+        ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "Zl", Zl);
+        ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "Zu", Zu);
+        ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "zl", zl);
+        ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "zu", zu);
+    }
+    free(zlumem);
 
 
 
@@ -745,20 +765,16 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
     double* lbx0 = lubx0;
     double* ubx0 = lubx0 + NBX0;
     // change only the non-zero elements:
-    lbx0[0] = 500;
-    ubx0[0] = 500;
-    lbx0[1] = 50;
-    ubx0[1] = 50;
-    lbx0[2] = 25;
-    ubx0[2] = 25;
+    lbx0[0] = 400;
+    ubx0[0] = 400;
+    lbx0[2] = 30;
+    ubx0[2] = 30;
     lbx0[3] = 100;
     ubx0[3] = 100;
-    lbx0[4] = -10;
-    ubx0[4] = -10;
-    lbx0[5] = -5;
-    ubx0[5] = -5;
-    lbx0[6] = -25;
-    ubx0[6] = -25;
+    lbx0[5] = -15;
+    ubx0[5] = -15;
+    lbx0[6] = -20;
+    ubx0[6] = -20;
     lbx0[7] = 1;
     ubx0[7] = 1;
 
@@ -767,29 +783,49 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, 0, "ubx", ubx0);
     free(idxbx0);
     free(lubx0);
-    // idxbxe_0
-    int* idxbxe_0 = malloc(14 * sizeof(int));
-    idxbxe_0[0] = 0;
-    idxbxe_0[1] = 1;
-    idxbxe_0[2] = 2;
-    idxbxe_0[3] = 3;
-    idxbxe_0[4] = 4;
-    idxbxe_0[5] = 5;
-    idxbxe_0[6] = 6;
-    idxbxe_0[7] = 7;
-    idxbxe_0[8] = 8;
-    idxbxe_0[9] = 9;
-    idxbxe_0[10] = 10;
-    idxbxe_0[11] = 11;
-    idxbxe_0[12] = 12;
-    idxbxe_0[13] = 13;
-    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, 0, "idxbxe", idxbxe_0);
-    free(idxbxe_0);
 
 
 
+    // set up nonlinear constraints for last stage
+    double* luh_0 = calloc(2*NH0, sizeof(double));
+    double* lh_0 = luh_0;
+    double* uh_0 = luh_0 + NH0;
+    lh_0[1] = 2000;
+    lh_0[3] = 0.9396926207859084;
+    lh_0[5] = 57.289961630759144;
+    uh_0[1] = 9000;
+    uh_0[2] = 1000000000;
+    uh_0[3] = 1000000000;
+    uh_0[4] = 4;
+    uh_0[5] = 1000000000;
+
+    ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, 0, "nl_constr_h_fun_jac", &capsule->nl_constr_h_0_fun_jac);
+    ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, 0, "nl_constr_h_fun", &capsule->nl_constr_h_0_fun);
+    
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, 0, "lh", lh_0);
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, 0, "uh", uh_0);
+    
+    
+    free(luh_0);
 
 
+    // set up soft bounds for nonlinear constraints
+    int* idxsh_0 = malloc(NSH0 * sizeof(int));
+    idxsh_0[0] = 0;
+    idxsh_0[1] = 1;
+    idxsh_0[2] = 2;
+    idxsh_0[3] = 3;
+    idxsh_0[4] = 4;
+    idxsh_0[5] = 5;
+    double* lush_0 = calloc(2*NSH0, sizeof(double));
+    double* lsh_0 = lush_0;
+    double* ush_0 = lush_0 + NSH0;
+
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, 0, "idxsh", idxsh_0);
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, 0, "lsh", lsh_0);
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, 0, "ush", ush_0);
+    free(idxsh_0);
+    free(lush_0);
 
 
 
@@ -798,10 +834,50 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
 
 
 
+    // set up soft bounds for nonlinear constraints
+    int* idxsh = malloc(NSH * sizeof(int));
+    idxsh[0] = 0;
+    idxsh[1] = 1;
+    idxsh[2] = 2;
+    idxsh[3] = 3;
+    idxsh[4] = 4;
+    idxsh[5] = 5;
+    double* lush = calloc(2*NSH, sizeof(double));
+    double* lsh = lush;
+    double* ush = lush + NSH;
+
+    for (int i = 1; i < N; i++)
+    {
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, i, "idxsh", idxsh);
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, i, "lsh", lsh);
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, i, "ush", ush);
+    }
+    free(idxsh);
+    free(lush);
 
 
 
 
+    // x
+    int* idxbx = malloc(NBX * sizeof(int));
+    idxbx[0] = 0;
+    idxbx[1] = 14;
+    double* lubx = calloc(2*NBX, sizeof(double));
+    double* lbx = lubx;
+    double* ubx = lubx + NBX;
+    lbx[0] = 300;
+    ubx[0] = 400;
+    lbx[1] = 3;
+    ubx[1] = 40;
+
+    for (int i = 1; i < N; i++)
+    {
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, i, "idxbx", idxbx);
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, i, "lbx", lbx);
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, i, "ubx", ubx);
+    }
+    free(idxbx);
+    free(lubx);
 
 
 
@@ -810,13 +886,14 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
     double* luh = calloc(2*NH, sizeof(double));
     double* lh = luh;
     double* uh = luh + NH;
-    lh[1] = 100;
-    lh[2] = 0.9659258262890684;
+    lh[1] = 2000;
     lh[3] = 0.9396926207859084;
-    uh[1] = 100000;
+    lh[5] = 57.289961630759144;
+    uh[1] = 9000;
     uh[2] = 1000000000;
     uh[3] = 1000000000;
-    uh[4] = 2;
+    uh[4] = 4;
+    uh[5] = 1000000000;
 
     for (int i = 1; i < N; i++)
     {
@@ -824,9 +901,6 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
                                       &capsule->nl_constr_h_fun_jac[i-1]);
         ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, i, "nl_constr_h_fun",
                                       &capsule->nl_constr_h_fun[i-1]);
-        
-        ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, i,
-                                      "nl_constr_h_fun_jac_hess", &capsule->nl_constr_h_fun_jac_hess[i-1]);
         
         ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, i, "lh", lh);
         ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, i, "uh", uh);
@@ -839,6 +913,32 @@ void rocket_acados_setup_nlp_in(rocket_solver_capsule* capsule, const int N, dou
 
     /* terminal constraints */
 
+    // set up bounds for last stage
+    // x
+    int* idxbx_e = malloc(NBXN * sizeof(int));
+    idxbx_e[0] = 1;
+    idxbx_e[1] = 2;
+    idxbx_e[2] = 3;
+    idxbx_e[3] = 4;
+    idxbx_e[4] = 5;
+    idxbx_e[5] = 6;
+    idxbx_e[6] = 7;
+    idxbx_e[7] = 8;
+    idxbx_e[8] = 9;
+    idxbx_e[9] = 10;
+    idxbx_e[10] = 11;
+    idxbx_e[11] = 12;
+    idxbx_e[12] = 13;
+    double* lubx_e = calloc(2*NBXN, sizeof(double));
+    double* lbx_e = lubx_e;
+    double* ubx_e = lubx_e + NBXN;
+    lbx_e[6] = 1;
+    ubx_e[6] = 1;
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "idxbx", idxbx_e);
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "lbx", lbx_e);
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "ubx", ubx_e);
+    free(idxbx_e);
+    free(lubx_e);
 
 
 
@@ -865,17 +965,6 @@ static void rocket_acados_create_set_opts(rocket_solver_capsule* capsule)
     ************************************************/
 
 
-    int nlp_solver_exact_hessian = 1;
-    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "exact_hess", &nlp_solver_exact_hessian);
-
-    int exact_hess_dyn = 1;
-    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "exact_hess_dyn", &exact_hess_dyn);
-
-    int exact_hess_cost = 1;
-    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "exact_hess_cost", &exact_hess_cost);
-
-    int exact_hess_constr = 1;
-    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "exact_hess_constr", &exact_hess_constr);
 
     int fixed_hess = 0;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "fixed_hess", &fixed_hess);
@@ -963,19 +1052,19 @@ static void rocket_acados_create_set_opts(rocket_solver_capsule* capsule)
 
 
     // set SQP specific options
-    double nlp_solver_tol_stat = 0.000001;
+    double nlp_solver_tol_stat = 0.01;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "tol_stat", &nlp_solver_tol_stat);
 
-    double nlp_solver_tol_eq = 0.000001;
+    double nlp_solver_tol_eq = 0.01;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "tol_eq", &nlp_solver_tol_eq);
 
-    double nlp_solver_tol_ineq = 0.000001;
+    double nlp_solver_tol_ineq = 0.01;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "tol_ineq", &nlp_solver_tol_ineq);
 
-    double nlp_solver_tol_comp = 0.000001;
+    double nlp_solver_tol_comp = 0.01;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "tol_comp", &nlp_solver_tol_comp);
 
-    int nlp_solver_max_iter = 100;
+    int nlp_solver_max_iter = 200;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "max_iter", &nlp_solver_max_iter);
 
     // set options for adaptive Levenberg-Marquardt Update
@@ -1046,16 +1135,7 @@ void rocket_acados_set_nlp_out(rocket_solver_capsule* capsule)
     double* xu0 = calloc(NX+NU, sizeof(double));
     double* x0 = xu0;
 
-    // initialize with x0
-    x0[0] = 500;
-    x0[1] = 50;
-    x0[2] = 25;
-    x0[3] = 100;
-    x0[4] = -10;
-    x0[5] = -5;
-    x0[6] = -25;
-    x0[7] = 1;
-
+    // initialize with zeros
 
     double* u0 = xu0 + NX;
 
@@ -1281,12 +1361,10 @@ int rocket_acados_free(rocket_solver_capsule* capsule)
         external_function_external_param_casadi_free(&capsule->expl_vde_forw[i]);
         external_function_external_param_casadi_free(&capsule->expl_ode_fun[i]);
         external_function_external_param_casadi_free(&capsule->expl_vde_adj[i]);
-        external_function_external_param_casadi_free(&capsule->expl_ode_hess[i]);
     }
     free(capsule->expl_vde_adj);
     free(capsule->expl_vde_forw);
     free(capsule->expl_ode_fun);
-    free(capsule->expl_ode_hess);
 
     // cost
 
@@ -1295,11 +1373,11 @@ int rocket_acados_free(rocket_solver_capsule* capsule)
     {
         external_function_external_param_casadi_free(&capsule->nl_constr_h_fun_jac[i]);
         external_function_external_param_casadi_free(&capsule->nl_constr_h_fun[i]);
-        external_function_external_param_casadi_free(&capsule->nl_constr_h_fun_jac_hess[i]);
     }
     free(capsule->nl_constr_h_fun_jac);
     free(capsule->nl_constr_h_fun);
-    free(capsule->nl_constr_h_fun_jac_hess);
+    external_function_external_param_casadi_free(&capsule->nl_constr_h_0_fun_jac);
+    external_function_external_param_casadi_free(&capsule->nl_constr_h_0_fun);
 
 
 
@@ -1315,7 +1393,7 @@ void rocket_acados_print_stats(rocket_solver_capsule* capsule)
     ocp_nlp_get(capsule->nlp_solver, "stat_m", &stat_m);
 
 
-    double stat[1200];
+    double stat[2400];
     ocp_nlp_get(capsule->nlp_solver, "statistics", stat);
 
     int nrow = nlp_iter+1 < stat_m ? nlp_iter+1 : stat_m;

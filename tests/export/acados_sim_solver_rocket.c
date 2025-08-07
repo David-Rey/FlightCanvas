@@ -73,7 +73,7 @@ int rocket_acados_sim_create(rocket_sim_solver_capsule * capsule)
     const int np = ROCKET_NP;
     bool tmp_bool;
 
-    double Tsim = 0.15;
+    double Tsim = 0.01;
 
     external_function_opts ext_fun_opts;
     external_function_opts_set_to_default(&ext_fun_opts);
@@ -108,14 +108,6 @@ int rocket_acados_sim_create(rocket_sim_solver_capsule * capsule)
     capsule->sim_expl_ode_fun_casadi->casadi_sparsity_out = &rocket_expl_ode_fun_sparsity_out;
     capsule->sim_expl_ode_fun_casadi->casadi_work = &rocket_expl_ode_fun_work;
     external_function_param_casadi_create(capsule->sim_expl_ode_fun_casadi, np, &ext_fun_opts);
-    capsule->sim_expl_ode_hess = (external_function_param_casadi *) malloc(sizeof(external_function_param_casadi));
-    capsule->sim_expl_ode_hess->casadi_fun = &rocket_expl_ode_hess;
-    capsule->sim_expl_ode_hess->casadi_work = &rocket_expl_ode_hess_work;
-    capsule->sim_expl_ode_hess->casadi_sparsity_in = &rocket_expl_ode_hess_sparsity_in;
-    capsule->sim_expl_ode_hess->casadi_sparsity_out = &rocket_expl_ode_hess_sparsity_out;
-    capsule->sim_expl_ode_hess->casadi_n_in = &rocket_expl_ode_hess_n_in;
-    capsule->sim_expl_ode_hess->casadi_n_out = &rocket_expl_ode_hess_n_out;
-    external_function_param_casadi_create(capsule->sim_expl_ode_hess, np, &ext_fun_opts);
 
     
 
@@ -170,8 +162,6 @@ int rocket_acados_sim_create(rocket_sim_solver_capsule * capsule)
                  "expl_vde_adj", capsule->sim_vde_adj_casadi);
     rocket_sim_config->model_set(rocket_sim_in->model,
                  "expl_ode_fun", capsule->sim_expl_ode_fun_casadi);
-    rocket_sim_config->model_set(rocket_sim_in->model,
-                "expl_ode_hess", capsule->sim_expl_ode_hess);
 
     // sim solver
     sim_solver *rocket_sim_solver = sim_solver_create(rocket_sim_config,
@@ -182,8 +172,8 @@ int rocket_acados_sim_create(rocket_sim_solver_capsule * capsule)
 
     /* initialize input */
     // x
-    double x0[14];
-    for (int ii = 0; ii < 14; ii++)
+    double x0[15];
+    for (int ii = 0; ii < 15; ii++)
         x0[ii] = 0.0;
 
     sim_in_set(rocket_sim_config, rocket_sim_dims,
@@ -199,11 +189,11 @@ int rocket_acados_sim_create(rocket_sim_solver_capsule * capsule)
                rocket_sim_in, "u", u0);
 
     // S_forw
-    double S_forw[238];
-    for (int ii = 0; ii < 238; ii++)
+    double S_forw[270];
+    for (int ii = 0; ii < 270; ii++)
         S_forw[ii] = 0.0;
-    for (int ii = 0; ii < 14; ii++)
-        S_forw[ii + ii * 14 ] = 1.0;
+    for (int ii = 0; ii < 15; ii++)
+        S_forw[ii + ii * 15 ] = 1.0;
 
 
     sim_in_set(rocket_sim_config, rocket_sim_dims,
@@ -246,8 +236,6 @@ int rocket_acados_sim_free(rocket_sim_solver_capsule *capsule)
     free(capsule->sim_expl_vde_forw);
     free(capsule->sim_vde_adj_casadi);
     free(capsule->sim_expl_ode_fun_casadi);
-    external_function_param_casadi_free(capsule->sim_expl_ode_hess);
-    free(capsule->sim_expl_ode_hess);
 
     return 0;
 }
@@ -266,7 +254,6 @@ int rocket_acados_sim_update_params(rocket_sim_solver_capsule *capsule, double *
     capsule->sim_expl_vde_forw[0].set_param(capsule->sim_expl_vde_forw, p);
     capsule->sim_vde_adj_casadi[0].set_param(capsule->sim_vde_adj_casadi, p);
     capsule->sim_expl_ode_fun_casadi[0].set_param(capsule->sim_expl_ode_fun_casadi, p);
-    capsule->sim_expl_ode_hess[0].set_param(capsule->sim_expl_ode_hess, p);
 
     return status;
 }

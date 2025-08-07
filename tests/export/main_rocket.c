@@ -74,20 +74,20 @@ int main()
     // initial condition
     double lbx0[NBX0];
     double ubx0[NBX0];
-    lbx0[0] = 500;
-    ubx0[0] = 500;
-    lbx0[1] = 50;
-    ubx0[1] = 50;
-    lbx0[2] = 25;
-    ubx0[2] = 25;
+    lbx0[0] = 400;
+    ubx0[0] = 400;
+    lbx0[1] = 0;
+    ubx0[1] = 0;
+    lbx0[2] = 30;
+    ubx0[2] = 30;
     lbx0[3] = 100;
     ubx0[3] = 100;
-    lbx0[4] = -10;
-    ubx0[4] = -10;
-    lbx0[5] = -5;
-    ubx0[5] = -5;
-    lbx0[6] = -25;
-    ubx0[6] = -25;
+    lbx0[4] = 0;
+    ubx0[4] = 0;
+    lbx0[5] = -15;
+    ubx0[5] = -15;
+    lbx0[6] = -20;
+    ubx0[6] = -20;
     lbx0[7] = 1;
     ubx0[7] = 1;
     lbx0[8] = 0;
@@ -122,6 +122,7 @@ int main()
     x_init[11] = 0.0;
     x_init[12] = 0.0;
     x_init[13] = 0.0;
+    x_init[14] = 0.0;
 
     // initial value for control input
     double u0[NU];
