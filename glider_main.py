@@ -5,9 +5,9 @@ import aerosandbox.numpy as np
 
 from components.aero_fuselage import AeroFuselage
 from components.aero_wing import create_planar_wing_pair, AeroWing
-from aero_vehicle import AeroVehicle
+from components.aero_vehicle import AeroVehicle
 
-import utils
+from components import utils
 
 if __name__ == '__main__':
     # Define Airfoils

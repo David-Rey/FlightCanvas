@@ -4,8 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Union, List, Tuple
 
 import numpy as np
-#from ASB6DOF import utils
-import utils
+from components import utils
 import pyvista as pv
 
 from components.buildup_manager import BuildupManager

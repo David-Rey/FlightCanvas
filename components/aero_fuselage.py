@@ -5,7 +5,7 @@ import aerosandbox as asb
 import numpy as np
 
 from .aero_component import AeroComponent
-import utils
+from . import utils
 
 
 class AeroFuselage(AeroComponent):

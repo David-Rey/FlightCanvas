@@ -7,7 +7,7 @@ import aerosandbox.tools.pretty_plots as p
 import os
 import pathlib
 import pickle
-import utils
+from components import utils
 from typing import Tuple
 
 

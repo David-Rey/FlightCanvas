@@ -3,10 +3,9 @@
 from typing import List, Union, Optional
 import aerosandbox as asb
 import aerosandbox.numpy as np
-import pyvista as pv
 
 from .aero_component import AeroComponent
-import utils
+from . import utils
 
 
 class AeroWing(AeroComponent):
@@ -154,7 +153,7 @@ def create_axial_wing_pair(
     angle_array = np.linspace(0, 360, num_wings + 1)
 
     for i in range(num_wings - 1):
-        R_Comp_Body = utils.rotate_z(angle_array[i+1])
+        R_Comp_Body = utils.rotate_z(angle_array[i + 1])
 
         new_wing = AeroWing(
             name=f"{name} Angle {angle_array[i+1]}",

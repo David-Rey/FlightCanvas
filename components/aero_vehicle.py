@@ -1,4 +1,4 @@
-# aero_project/aero_vehicle.py
+# aero_project/components/aero_vehicle.py
 
 from typing import List, Union, Tuple
 import pyvista as pv
@@ -241,7 +241,7 @@ class AeroVehicle:
         dt = 1 / fps
         num_frames = int(np.floor(t_arr[-1] * fps))
 
-        video_filename = 'animation.mp4'
+        video_filename = '../animation.mp4'
 
         self.pl.open_movie(video_filename, framerate=fps, quality=9)
 
