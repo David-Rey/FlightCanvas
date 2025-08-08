@@ -82,10 +82,11 @@ class AeroComponent(ABC):
         """
         self.parent = parent
 
-    def get_forces_and_moment_lookup(self, state) -> Tuple[np.ndarray, np.ndarray]:
+    def get_forces_and_moment_lookup(self, state: np.ndarray, deflection=0) -> Tuple[np.ndarray, np.ndarray]:
         """
         Looks up aerodynamic forces by interpolating pre-computed buildup data
         :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
+        :param deflection: The deflection angle of component
         :return: Forces and moments from lookup table
         """
         # Extracts velocity, orientation and angular rate from state vector
@@ -99,6 +100,7 @@ class AeroComponent(ABC):
         # Transform inertial velocity into the vehicle's body frame
         v_B = C_B_I @ vel
 
+        #T = self.update_transform(rotation=deflection)
         T = self.static_transform_matrix
         R = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
 

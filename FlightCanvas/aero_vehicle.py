@@ -81,7 +81,7 @@ class AeroVehicle:
         F_b = np.zeros(3)
         M_b = np.zeros(3)
 
-        # For each component, look up the forces based on its local flow conditions
+        # For each component, look up the forces and moments based on its local flow conditions
         for component in self.components:
             F_b_comp, M_b_comp = component.get_forces_and_moment_lookup(state)
             F_b += F_b_comp
@@ -295,6 +295,7 @@ class AeroVehicle:
             if debug:
                 self.update_debug(state)
 
+            # extract rotation matrix from quaterion
             quat = state[6:10]
             C_B_I = utils.dir_cosine_np(quat)
 
@@ -321,93 +322,3 @@ class AeroVehicle:
         """
         self.pl.add_axes_at_origin(labels_off=True)
         self.pl.show(**kwargs)
-
-
-# print(f"  Time {t}")
-# print(f"  Position (Inertial): {pos_I}")
-# print(f"  Velocity (Inertial): {vel_I}")
-# print(f"  Quaternion: {quat}")
-# print(f"  Angular Velocity (Body): {omega_B}")
-# print("\n")
-
-'''
-def draw_buildup(self, name: str, ID: str, **kwargs):
-    """
-    Draws a contour plot of a specified aerodynamic coefficient from the
-    buildup data
-    :param name: The name of the component
-    :param ID: The identifier for the data to plot (e.g., "CL", "CD", "F_b")
-    :param kwargs: Additional keyword arguments for the plot
-    """
-    for component in self.FlightCanvas:
-        if component.name == name:
-            component.draw_buildup(name, ID, **kwargs)
-
-    def dynamics(self, t, state):
-        pos_I = state[:3]  # Position in the inertial frame
-        vel_I = state[3:6]  # Velocity in the inertial frame
-        quat = state[6:10]  # Orientation as a quaternion
-        omega_B = state[10:13]  # Angular velocity in the body frame
-
-        # Gravity in the inertial frame
-        g = np.array([0, 0, -9.81])
-
-        # Forces and moments (in the body frame)
-        F_B, M_B = self.compute_forces_and_moments_lookup(quat, vel_I, omega_B)
-        F_B = F_B.flatten()
-        M_B = M_B.flatten()
-
-        C_B_I = dir_cosine_np(quat)
-        C_I_B = C_B_I.transpose()
-
-        F_I = C_I_B @ F_B + self.mass_const * g
-
-        v_dot = F_I / self.mass_const
-        J_B = np.array(self.moi_const)
-        omega_dot = np.linalg.inv(J_B) @ (M_B - np.cross(omega_B, J_B @ omega_B))
-        quat_dot = 0.5 * omega(omega_B) @ quat
-        return np.concatenate((vel_I, v_dot, quat_dot, omega_dot))
-
-    def test_remove_me(self):
-        # Initial state
-        vel = np.array([10, 0, 0])  # Initial velocity
-        quat = utils.euler_to_quat((0, 0, 0))
-        omega = np.array([0, 0, 0])  # Initial angular velocity
-
-        F_B, M_B = self.compute_forces_and_moments_lookup(quat, vel, omega, self.xyz_ref)
-        print(f"F_B: {F_B}")
-        print(f"M_B: {M_B}")
-
-    def draw(self, debug=False):
-        """
-        Prepares the vehicle for rendering in the PyVista plotter
-        :param debug: If True, enables debug visuals like axes and reference points
-        """
-        #pos_0 = np.array([0, 0, 0])  # Initial position
-        #vel_0 = np.array([0, 0, 0])  # Initial velocity
-        #quat_0 = utils.euler_to_quat((0, 0, 0))
-        #omega_0 = np.array([0, 0, 0])  # Initial angular velocity
-        #state = np.concatenate((pos_0, vel_0, quat_0, omega_0))
-
-        # Ensure all actors are updated with their latest transforms
-        #self.update_actors()
-
-        if debug:
-            self.pl.add_axes_at_origin(labels_off=True)
-            self.init_debug()
-     
-'''
-
-# TODO: Review this coordinate system correction.
-# The negative sign suggests a mismatch between the simulation's inertial
-# frame (e.g., North-East-Down) and the aerodynamic standard frame
-# (forward-right-down). This needs verification.
-# vel[0] = -vel[0]
-
-
-# print(f"  Time {t}")
-# print(f"  Position (Inertial): {pos_I}")
-# print(f"  Velocity (Inertial): {vel_I}")
-# print(f"  Quaternion: {quat}")
-# print(f"  Angular Velocity (Body): {omega_B}")
-# print("\n")

@@ -167,7 +167,7 @@ if __name__ == '__main__':
     aero_vehicle.set_moi_factor(70)
 
     # DEBUG
-    animate = 1
+    animate = 0
 
     aero_vehicle.compute_buildup()
     #aero_vehicle.save_buildup()

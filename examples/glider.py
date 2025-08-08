@@ -79,11 +79,11 @@ if __name__ == '__main__':
     )
 
     # DEBUG
-    animate = 1
+    animate = 0
 
     aero_vehicle.compute_buildup()
     aero_vehicle.save_buildup()
-    #aero_vehicle.save_buildup_fig()
+    aero_vehicle.save_buildup_fig()
     aero_vehicle.load_buildup()
 
     if animate:
@@ -95,7 +95,7 @@ if __name__ == '__main__':
 
         t_arr, x_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, print_debug=False)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
-        aero_vehicle.animate(t_arr, x_arr)
+        aero_vehicle.animate(t_arr, x_arr, cam_distance=4)
     else:
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=0.8)
         aero_vehicle.init_debug()

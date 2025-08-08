@@ -37,7 +37,7 @@ if __name__ == '__main__':
     )
 
     # DEBUG
-    animate = 0
+    animate = 1
 
     aero_vehicle.compute_buildup()
     aero_vehicle.save_buildup()
