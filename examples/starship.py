@@ -68,7 +68,7 @@ def model_body(height: float, diameter: float) -> AeroFuselage:
     end_cord = np.array([[height, nosecone_coords[-1, 1]], [height, 0]])
     nosecone_coords = np.vstack((nosecone_coords, end_cord))
 
-    k = 0  # remove me (for testing)
+    k = 20  # remove me (for testing)
 
     fuselage_xsecs = [asb.FuselageXSec(
         xyz_c=[x - k, 0, 0],  # Place the sections based on the nosecone coordinates
@@ -174,11 +174,10 @@ if __name__ == '__main__':
     #aero_vehicle.save_buildup_fig()
     #aero_vehicle.load_buildup()
 
-    front_flap_del = 0
-    back_flap_del = 0
+    front_flap_del = 20
+    back_flap_del = 10
     aero_vehicle.set_control(["Front Flap", "Front Flap Star"], np.deg2rad([front_flap_del, front_flap_del]))
     aero_vehicle.set_control(["Back Flap", "Back Flap Star"], np.deg2rad([back_flap_del, back_flap_del]))
-    #aero_vehicle.update_transform()
 
     if animate:
         pos_0 = np.array([0, 0, 950])  # Initial position
@@ -187,14 +186,12 @@ if __name__ == '__main__':
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
         tf = 20
 
-
         t_arr, x_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, N=200)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
-        aero_vehicle.animate(t_arr, x_arr)
-        #aero_vehicle.print_states(t_arr, x_arr)
+        aero_vehicle.animate(t_arr, x_arr, cam_distance=60)
     else:
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=0.8)
-        aero_vehicle.init_debug(size=5)
+        aero_vehicle.init_debug(size=5.5)
         aero_vehicle.show()
 
 

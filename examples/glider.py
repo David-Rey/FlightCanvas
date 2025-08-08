@@ -1,4 +1,4 @@
-# aero_project/glider.py
+# aero_project/FlightCanvas/examples/glider.py
 
 import aerosandbox as asb
 import aerosandbox.numpy as np
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     )
 
     # DEBUG
-    animate = 0
+    animate = 1
 
     aero_vehicle.compute_buildup()
     aero_vehicle.save_buildup()
@@ -93,7 +93,7 @@ if __name__ == '__main__':
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
         tf = 40
 
-        t_arr, x_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf)
+        t_arr, x_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, print_debug=False)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
         aero_vehicle.animate(t_arr, x_arr)
     else:

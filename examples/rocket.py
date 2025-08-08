@@ -17,7 +17,7 @@ if __name__ == '__main__':
         asb.WingXSec(xyz_le=[-0.03, 0.17, 0], chord=0.08, twist=0, airfoil=tail_airfoil)
     ]
 
-    h_tail_wings = create_axial_wing_pair(
+    fins = create_axial_wing_pair(
         name="Fin",
         xsecs=h_tail_xsecs,
         translation=[0.3, 0.1, 0],  # Apply translation to the whole pair
@@ -27,7 +27,7 @@ if __name__ == '__main__':
     )
 
     all_components = [
-        *h_tail_wings,
+        *fins,
     ]
 
     aero_vehicle = AeroVehicle(

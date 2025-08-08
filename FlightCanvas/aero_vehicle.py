@@ -103,79 +103,68 @@ class AeroVehicle:
                     component.update_transform(rotation=control[i])
                     break  # Move to the next surface name once found
 
-    def run_sim(self, pos_0, vel_0, quat_0, omega_0, tf, N=500) -> Tuple[np.ndarray, np.ndarray]:
+    def run_sim(self, pos_0, vel_0, quat_0, omega_0, tf, N=500, gravity=True, print_debug=False) -> Tuple[np.ndarray, np.ndarray]:
         """
         Runs simulation of 6 Degree of Freedom model with no control
-        :param: pos_0: The initial position [x, y, z] (m)
-        :param: vel_0: The initial velocity [x, y, z] (m/s)
-        :param: quat_0: The initial quaternion [q0, q1, q2, q3]
-        :param: omega_0: The initial omega [x, y, z] (rad/s)
-        :param: tf: The time of simulation (s)
-        :param: N: The number of simulation steps
+        :param pos_0: The initial position [x, y, z] (m)
+        :param vel_0: The initial velocity [x, y, z] (m/s)
+        :param quat_0: The initial quaternion [q0, q1, q2, q3]
+        :param omega_0: The initial omega [x, y, z] (rad/s)
+        :param tf: The time of simulation (s)
+        :param N: The number of simulation steps
+        :param gravity: Boolean for active gravity
+        :param print_debug: Boolean for printing debugging information
         :return: The time and state for every simulation step
         """
+
+        # Gravity in the inertial frame
+        g = np.array([0, 0, 0])
+        if gravity:
+            g = np.array([0, 0, -9.81])
+
+        def dynamics_6DOF(t: float, state: np.ndarray) -> np.ndarray:
+            """
+            Propagates 6 Degree of Freedom dynamics and returns the derivative of the state vector (x_dot)
+            :param t: The current time
+            :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
+            :return: The derivative of the state vector (x_dot)
+            """
+            pos_I = state[:3]  # Position in the inertial frame
+            vel_I = state[3:6]  # Velocity in the inertial frame
+            quat = state[6:10]  # Orientation as a quaternion
+            omega_B = state[10:13]  # Angular velocity in the body frame
+
+            if print_debug:
+                print(f"  Time {t}")
+                print(f"  Position (Inertial): {pos_I}")
+                print(f"  Velocity (Inertial): {vel_I}")
+                print(f"  Quaternion: {quat}")
+                print(f"  Angular Velocity (Body): {omega_B}")
+                print("\n")
+
+            # Forces and moments (in the body frame)
+            F_B, M_B = self.compute_forces_and_moments_lookup(state)
+
+            C_B_I = utils.dir_cosine_np(quat)  # From body to internal
+            C_I_B = C_B_I.transpose()
+
+            F_I = (C_I_B @ F_B) + self.mass * g
+
+            # Equations of motion for a 6DoF object
+            v_dot = F_I / self.mass
+            J_B = np.array(self.moi)
+            omega_dot = np.linalg.inv(J_B) @ (M_B - np.cross(omega_B, J_B @ omega_B))
+            quat_dot = 0.5 * utils.omega(omega_B) @ quat
+            return np.concatenate((vel_I, v_dot, quat_dot, omega_dot))
+
         # Initial state
         state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
 
         # Time span for the simulation
         t_span = (0, tf)  # Simulate for 10 seconds
         t_eval = np.linspace(t_span[0], t_span[1], N)  # Time points for output
-        solution = solve_ivp(self.dynamics_6DOF, t_span, state_0, t_eval=t_eval, rtol=1e-5, atol=1e-5)
+        solution = solve_ivp(dynamics_6DOF, t_span, state_0, t_eval=t_eval, rtol=1e-5, atol=1e-5)
         return t_eval, solution['y']
-
-    def dynamics_6DOF(self, t: float, state: np.ndarray) -> np.ndarray:
-        """
-        Propagates 6 Degree of Freedom dynamics and returns the derivative of the state vector (x_dot)
-        :param t: The current time
-        :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
-        :return: The derivative of the state vector (x_dot)
-        """
-        pos_I = state[:3]  # Position in the inertial frame
-        vel_I = state[3:6]  # Velocity in the inertial frame
-        quat = state[6:10]  # Orientation as a quaternion
-        omega_B = state[10:13]  # Angular velocity in the body frame
-
-        print(f"  Time {t}\n")
-
-        # Gravity in the inertial frame
-        g = np.array([0, 0, -9.81])
-        #g = np.array([0, 0, 0])
-
-        # Forces and moments (in the body frame)
-        F_B, M_B = self.compute_forces_and_moments_lookup(state)
-
-        C_B_I = utils.dir_cosine_np(quat)  # From body to internal
-        C_I_B = C_B_I.transpose()
-
-        F_I = (C_I_B @ F_B) + self.mass * g
-
-        # Equations of motion for a 6DoF object
-        v_dot = F_I / self.mass
-        J_B = np.array(self.moi)
-        omega_dot = np.linalg.inv(J_B) @ (M_B - np.cross(omega_B, J_B @ omega_B))
-        quat_dot = 0.5 * utils.omega(omega_B) @ quat
-        return np.concatenate((vel_I, v_dot, quat_dot, omega_dot))
-
-    @staticmethod
-    def print_states(t_arr: np.ndarray, x_arr: np.ndarray):
-        """
-        :param t_arr: The time array
-        :param x_arr: The state array
-        """
-        for i in range(len(t_arr)):
-            t = t_arr[i]
-            state = x_arr[:, i]
-            pos_I = state[:3]  # Position in the inertial frame
-            vel_I = state[3:6]  # Velocity in the inertial frame
-            quat = state[6:10]  # Orientation as a quaternion
-            omega_B = state[10:13]  # Angular velocity in the body frame
-
-            print(f"  Time {t}")
-            print(f"  Position (Inertial): {pos_I}")
-            print(f"  Velocity (Inertial): {vel_I}")
-            print(f"  Quaternion: {quat}")
-            print(f"  Angular Velocity (Body): {omega_B}")
-            print("\n")
 
     def init_buildup_manager(self):
         """
@@ -264,12 +253,13 @@ class AeroVehicle:
         """
         [comp.update_debug(state) for comp in self.components]
 
-    def animate(self, t_arr: np.ndarray, x_arr: np.ndarray, debug=False):
+    def animate(self, t_arr: np.ndarray, x_arr: np.ndarray, debug=False, cam_distance=5):
         """
         Animates the aerodynamic visuals for all FlightCanvas
         :param t_arr: The time array
         :param x_arr: The state array
         :param debug: If true, draws debug visuals
+        :param cam_distance: The distance from the camera to center of mass
         """
         grid = pv.Plane(
             center=(0, 0, 0),  # Center of the plane
@@ -315,7 +305,7 @@ class AeroVehicle:
             self.pl.camera.focal_point = pos
 
             # set camera location
-            cam_offset = 60 * np.array([-1, 1, 1])
+            cam_offset = cam_distance * np.array([-1, 1, 1])
             self.pl.camera.position = pos + cam_offset
 
             # render and write the frame to the .mp4

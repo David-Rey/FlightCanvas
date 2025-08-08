@@ -28,7 +28,7 @@ def plot_line_from_points(
         plotter: pv.Plotter,
         start_point: np.ndarray,
         end_point: np.ndarray,
-        width: float = 10,
+        width: float = 8,
         color: str = 'grey',
         label: str = None,
         **kwargs  # Any additional kwargs for plotter.add_mesh (e.g., opacity)
@@ -195,6 +195,8 @@ def draw_line_from_point_and_vector(
 
 
 def flip_y(vector: Union[np.ndarray, List[float]]) -> np.ndarray:
+    if vector is None:
+        return None
     new_vector = np.array([vector[0], -vector[1], vector[2]])
     return new_vector
 
@@ -500,6 +502,26 @@ def interp_state(t_arr, x_arr, sim_time):
     state = state0 + alpha * (state1 - state0)
 
     return state
+
+def print_states(t_arr: np.ndarray, x_arr: np.ndarray):
+    """
+    :param t_arr: The time array
+    :param x_arr: The state array
+    """
+    for i in range(len(t_arr)):
+        t = t_arr[i]
+        state = x_arr[:, i]
+        pos_I = state[:3]  # Position in the inertial frame
+        vel_I = state[3:6]  # Velocity in the inertial frame
+        quat = state[6:10]  # Orientation as a quaternion
+        omega_B = state[10:13]  # Angular velocity in the body frame
+
+        print(f"  Time {t}")
+        print(f"  Position (Inertial): {pos_I}")
+        print(f"  Velocity (Inertial): {vel_I}")
+        print(f"  Quaternion: {quat}")
+        print(f"  Angular Velocity (Body): {omega_B}")
+        print("\n")
 
 '''
 def rotate_mesh_by_matrix(
