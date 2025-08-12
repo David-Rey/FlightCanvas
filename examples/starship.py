@@ -37,6 +37,7 @@ def _get_nosecone_cords(diameter, smoothed=True, n_points=500):
     else:
         return scaled_points
 
+
 def _flat_plate_airfoil(thickness=0.01, n_points=100):
     """
     Creates a flat plate airfoil with a specified thickness.
@@ -158,26 +159,43 @@ if __name__ == '__main__':
         *back_flaps,
     ]
 
+    # Values are another dict mapping component names to their gain.
+    control_mapping = {
+        "control 1": {
+            "Front Flap": 1.0
+        },
+        "control 2": {
+            "Front Flap Star": 1.0
+        },
+        "control 3": {
+            "Back Flap": 1.0
+        },
+        "control 4": {
+            "Back Flap Star": 1.0
+        }
+    }
+
     aero_vehicle = AeroVehicle(
         name="Starship",
         xyz_ref=[20, 0, 0],  # Vehicle's Center of Gravity
-        components=all_components
+        components=all_components,
     )
     aero_vehicle.set_mass(95000)
     aero_vehicle.set_moi_factor(70)
+    aero_vehicle.set_control_mapping(control_mapping)
 
     # DEBUG
     animate = 0
 
-    aero_vehicle.compute_buildup()
+    #aero_vehicle.compute_buildup()
     #aero_vehicle.save_buildup()
     #aero_vehicle.save_buildup_fig()
-    #aero_vehicle.load_buildup()
+    aero_vehicle.load_buildup()
 
-    front_flap_del = 20
-    back_flap_del = 10
-    aero_vehicle.set_control(["Front Flap", "Front Flap Star"], np.deg2rad([front_flap_del, front_flap_del]))
-    aero_vehicle.set_control(["Back Flap", "Back Flap Star"], np.deg2rad([back_flap_del, back_flap_del]))
+    front_flap_del = np.deg2rad(40)
+    back_flap_del = np.deg2rad(10)
+    control_arr = np.array([front_flap_del, front_flap_del, back_flap_del, -back_flap_del])
+    aero_vehicle.set_control(control_arr)
 
     if animate:
         pos_0 = np.array([0, 0, 950])  # Initial position
@@ -193,7 +211,6 @@ if __name__ == '__main__':
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=0.8)
         aero_vehicle.init_debug(size=5.5)
         aero_vehicle.show()
-
 
 """
     front_flap_del = 60

@@ -33,6 +33,8 @@ class AeroVehicle:
         self.mass = 10
         self.moi = self.mass * np.eye(3)
         self.components = components
+        self.control_mapping = None
+        self.allocation_matrix = None
 
         self.vehicle_path = f'vehicle_saves/{self.name}'
 
@@ -71,7 +73,41 @@ class AeroVehicle:
         """
         self.moi = moi_factor * self.mass * np.eye(3)
 
-    def compute_forces_and_moments_lookup(self, state: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def set_control_mapping(self, control_mapping: dict):
+        """
+        Sets the control mapping for the vehicle
+        :param control_mapping: A dictionary that maps each component to its control
+        """
+        self.control_mapping = control_mapping
+
+        # Get sorted lists of commands (for columns) and component names (for rows)
+        command_names = control_mapping.keys()
+        actuator_names = [comp.name for comp in self.components]
+
+        # Create helper dictionaries to map names to matrix indices
+        actuator_to_row = {name: i for i, name in enumerate(actuator_names)}
+        command_to_col = {name: i for i, name in enumerate(command_names)}
+
+        # Initialize a zero matrix with the correct dimensions
+        num_actuators = len(actuator_names)
+        num_commands = len(command_names)
+        self.allocation_matrix = np.zeros((num_actuators, num_commands))
+
+        # Populate the matrix with gains from the input dictionary
+        for command, component_map in control_mapping.items():
+            col_idx = command_to_col[command]
+            for actuator_name, gain in component_map.items():
+                if actuator_name in actuator_to_row:
+                    row_idx = actuator_to_row[actuator_name]
+                    self.allocation_matrix[row_idx, col_idx] = gain
+                else:
+                    # Warn if a name in the mapping doesn't match a component
+                    print(
+                        f"Warning: Actuator '{actuator_name}' in control mapping "
+                        f"does not correspond to any component name."
+                    )
+
+    def compute_forces_and_moments_lookup(self, state: np.ndarray, deflections: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Computes the aerodynamic forces and moments on the vehicle by looking up
         pre-computed data for each component
@@ -83,27 +119,43 @@ class AeroVehicle:
 
         # For each component, look up the forces and moments based on its local flow conditions
         for component in self.components:
+            #true_deflection = component.actuator(cmd_deflection)
+            #F_b_comp, M_b_comp = component.get_forces_and_moment_lookup(state, deflection)
             F_b_comp, M_b_comp = component.get_forces_and_moment_lookup(state)
             F_b += F_b_comp
             M_b += M_b_comp
 
         return F_b, M_b
 
-    def set_control(self, surface_name: List[str], control: List[float]):
+    def set_control(self, control: np.ndarray):
         """
         Sets the deflection angle for one or more control surfaces
-        :param surface_name: A list of names of the FlightCanvas to actuate
         :param control: A list of corresponding control deflection angles in radians
         """
-        for i, surface_name in enumerate(surface_name):
-            # Find the component with the matching name
-            for component in self.components:
-                if component.name == surface_name:
-                    # Update the component's transformation matrix with the new rotation
-                    component.update_transform(rotation=control[i])
-                    break  # Move to the next surface name once found
 
-    def run_sim(self, pos_0, vel_0, quat_0, omega_0, tf, N=500, gravity=True, print_debug=False) -> Tuple[np.ndarray, np.ndarray]:
+        # Get deflections based on allocation matrix
+        deflections = self.allocation_matrix @ control
+
+        # Get the sorted list of component names to serve as keys.
+        actuator_names = [comp.name for comp in self.components]
+
+        # Create a dictionary mapping each component name to its calculated deflection.
+        deflection_map = {
+            name: deflection for name, deflection in zip(actuator_names, deflections)
+        }
+
+        # Iterate through all components and apply their calculated deflection.
+        for component in self.components:
+            # Check if this component is a controllable surface.
+            if component.name in deflection_map:
+                # Get the specific deflection for this component from the map.
+                rotation_command = deflection_map[component.name]
+
+                # Update the component's transformation matrix with the new rotation.
+                component.update_transform(rotation=rotation_command)
+
+    def run_sim(self, pos_0, vel_0, quat_0, omega_0, tf, N=500, gravity=True, print_debug=False,
+                open_loop_control=None) -> Tuple[np.ndarray, np.ndarray]:
         """
         Runs simulation of 6 Degree of Freedom model with no control
         :param pos_0: The initial position [x, y, z] (m)
@@ -114,13 +166,12 @@ class AeroVehicle:
         :param N: The number of simulation steps
         :param gravity: Boolean for active gravity
         :param print_debug: Boolean for printing debugging information
+        :param open_loop_control: Open loop control object that commands the aero vehicle
         :return: The time and state for every simulation step
         """
 
         # Gravity in the inertial frame
-        g = np.array([0, 0, 0])
-        if gravity:
-            g = np.array([0, 0, -9.81])
+        g = np.array([0, 0, -9.81]) if gravity else np.array([0, 0, 0])
 
         def dynamics_6DOF(t: float, state: np.ndarray) -> np.ndarray:
             """
@@ -142,8 +193,14 @@ class AeroVehicle:
                 print(f"  Angular Velocity (Body): {omega_B}")
                 print("\n")
 
+            cmd_deflections = None
+            if open_loop_control is not None:
+                mu = open_loop_control.get_u(t)  # TODO
+                cmd_deflections = self.allocation_matrix @ mu
+                #true_deflection =
+
             # Forces and moments (in the body frame)
-            F_B, M_B = self.compute_forces_and_moments_lookup(state)
+            F_B, M_B = self.compute_forces_and_moments_lookup(state, cmd_deflections)
 
             C_B_I = utils.dir_cosine_np(quat)  # From body to internal
             C_I_B = C_B_I.transpose()
@@ -161,7 +218,7 @@ class AeroVehicle:
         state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
 
         # Time span for the simulation
-        t_span = (0, tf)  # Simulate for 10 seconds
+        t_span = (0, tf)  # Simulate for tf seconds
         t_eval = np.linspace(t_span[0], t_span[1], N)  # Time points for output
         solution = solve_ivp(dynamics_6DOF, t_span, state_0, t_eval=t_eval, rtol=1e-5, atol=1e-5)
         return t_eval, solution['y']
