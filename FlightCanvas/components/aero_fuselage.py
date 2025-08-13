@@ -6,6 +6,8 @@ import numpy as np
 
 from .aero_component import AeroComponent
 from FlightCanvas import utils
+from FlightCanvas.actuators import ActuatorModel
+from typing import Optional, Union, List, Tuple
 
 
 class AeroFuselage(AeroComponent):
@@ -18,19 +20,23 @@ class AeroFuselage(AeroComponent):
             self,
             name: str,
             xsecs: List["asb.FuselageXSec"],
-            axis_vector: Union[np.ndarray, List[float]] = (1, 0, 0),
+            ref_direction: Union[np.ndarray, List[float]] = (1, 0, 0),
             is_prime: bool = True,
-            **kwargs
+            symmetric_comp: Optional['AeroComponent'] = None,
+            actuator_model: Optional[ActuatorModel] = None,
+            **kwargs,
     ):
         """
         Initializes the AeroFuselage component
         :param name: The name of the fuselage
         :param xsecs: A list of `aerosandbox.FuselageXSec` objects that define the fuselage's cross-sections from nose to tail
-        :param axis_vector: The primary axis of the fuselage, typically aligned with the body x-axis. Defaults to (1, 0, 0)
+        :param ref_direction: The primary axis of the fuselage, typically aligned with the body x-axis. Defaults to (1, 0, 0)
         :param is_prime: Inherited from AeroComponent. Since fuselages are rarely mirrored, this usually remains True
+        :param symmetric_comp: The AeroComponent object that is symmetric to the current AeroComponent object
+        :param actuator_model: The actuator model object to use
         :param kwargs: Additional keyword arguments to be passed to the `aerosandbox.Fuselage` constructor
         """
-        super().__init__(name, axis_vector, is_prime=is_prime)
+        super().__init__(name, ref_direction, is_prime=is_prime, symmetric_comp=symmetric_comp, actuator_model=actuator_model)
 
         # Ensure fuselage is not symmetric for visualization
         kwargs['symmetric'] = False

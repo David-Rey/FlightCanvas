@@ -10,8 +10,17 @@ class ActuatorModel(ABC):
     Abstract base class for an actuator model.
     """
 
-    def __init__(self, state_size: int):
+    def __init__(self, state_size: int) -> None:
         self.state_size = state_size
+        self.deflection_state = ca.MX.sym('delta_state', self.state_size)
+        self.name = None
+
+    def set_name(self, name: str):
+        """
+        Sets the name of the actuator model
+        :param name: The name of the actuator model
+        """
+        self.name = name
 
     @abstractmethod
     def get_derivative(self, state: np.ndarray, command: float) -> np.ndarray:
@@ -24,10 +33,10 @@ class ActuatorModel(ABC):
         pass
 
     @abstractmethod
-    def get_casadi_expression(self) -> ca.Function:
+    def get_casadi_expression(self, u: ca.MX) -> ca.Function:
         """
         Creates a CasADi symbolic function for the actuator dynamics.
-        :return: A CasADi function representing the actuator's dynamics
+        :return: A CasADi function representing the actuator's dynamics  # delta_state: ca.MX,
         """
         pass
 
@@ -36,22 +45,26 @@ class FirstOrderDeflection(ActuatorModel):
     """
     First-Order Deflection Actuator Model
     """
-    def __init__(self, time_constant: float):
+    def __init__(self, time_constant: float) -> None:
         if time_constant <= 0:
             raise ValueError("Time constant must be positive.")
         super().__init__(state_size=1)
         self.tau = time_constant
+
 
     def get_derivative(self, state: np.ndarray, command: float) -> np.ndarray:
         deflection = state[0]
         deflection_dot = (command - deflection) / self.tau
         return np.array([deflection_dot])
 
-    def get_casadi_expression(self) -> ca.Function:
-        x = ca.MX.sym('x', self.state_size)
-        u = ca.MX.sym('u')
-        x_dot = (u - x[0]) / self.tau
-        return ca.Function('first_order_deflection_actuator', [x, u], [x_dot], ['x', 'u'], ['x_dot'])
+    def get_casadi_expression(self, u: ca.MX) -> ca.Function:
+        """
+        Creates a CasADi symbolic function for the actuator dynamics
+        :param u: The control input command
+        :return: The derivative of the state vector of the actuator
+        """
+        x_dot = (u - self.deflection_state[0]) / self.tau
+        return ca.Function('first_order_deflection_actuator', [self.deflection_state, u], [x_dot])
 
 
 if __name__ == "__main__":
@@ -63,15 +76,17 @@ if __name__ == "__main__":
 
     # Create an instance of the actuator model
     actuator = FirstOrderDeflection(time_constant=time_constant)
+    actuator.set_name("first-order-deflection-1")
+
+    # Define the ODE problem structure for CasADi
+    ca_x = ca.MX.sym('x', actuator.state_size)
+    ca_u = ca.MX.sym('u')
 
     # --- 2. CasADi Integrator Setup ---
     # Get the symbolic expression for the actuator dynamics
-    actuator_dynamics = actuator.get_casadi_expression()
+    actuator_dynamics = actuator.get_casadi_expression(ca_x, ca_u)
 
-    # Define the ODE problem structure for CasADi
-    x = ca.MX.sym('x', actuator.state_size)
-    u = ca.MX.sym('u')
-    ode = {'x': x, 'p': u, 'ode': actuator_dynamics(x, u)}
+    ode = {'x': ca_x, 'p': ca_u, 'ode': actuator_dynamics(ca_x, ca_u)}
 
     # Create a CasADi integrator
     # We use the 'cvodes' plugin, which is a robust variable-step solver.

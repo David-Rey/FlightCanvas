@@ -6,6 +6,7 @@ import aerosandbox.numpy as np
 from FlightCanvas import utils
 import pathlib
 from scipy.integrate import solve_ivp
+import casadi as ca
 
 from FlightCanvas.components.aero_component import AeroComponent
 
@@ -35,6 +36,7 @@ class AeroVehicle:
         self.components = components
         self.control_mapping = None
         self.allocation_matrix = None
+        self.ca_u = None
 
         self.vehicle_path = f'vehicle_saves/{self.name}'
 
@@ -106,6 +108,8 @@ class AeroVehicle:
                         f"Warning: Actuator '{actuator_name}' in control mapping "
                         f"does not correspond to any component name."
                     )
+        # Set up casadi control variables
+        self.ca_u = ca.MX.sym('control', num_commands)
 
     def compute_forces_and_moments_lookup(self, state: np.ndarray, deflections: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """

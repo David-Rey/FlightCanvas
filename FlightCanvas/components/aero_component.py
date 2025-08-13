@@ -3,11 +3,13 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Union, List, Tuple
 
+import casadi as ca
 import numpy as np
 from FlightCanvas import utils
 import pyvista as pv
 
 from FlightCanvas.buildup_manager import BuildupManager
+from FlightCanvas.actuators import ActuatorModel
 
 
 def get_rel_alpha_beta(v_rel: Union[np.ndarray, List[float]]):
@@ -33,13 +35,15 @@ class AeroComponent(ABC):
                  ref_direction: Union[np.ndarray, List[float]],
                  control_pivot=None,
                  is_prime=True,
-                 symmetric_comp: Optional['AeroComponent'] = None, ):
+                 symmetric_comp: Optional['AeroComponent'] = None,
+                 actuator_model: Optional[ActuatorModel] = None,):
         """
         :param name: The name of the component
         :param ref_direction: The primary axis of the component, used for rotation (e.g., hinge axis for a control surface)
         :param control_pivot: The axis at which the component will rotate given a control input
         :param is_prime: Flag to indicate if this is a primary component. If False, control surface rotations are inverted
         :param symmetric_comp: The AeroComponent object that is symmetric to the current AeroComponent object
+        :param actuator_model: The actuator model object to use
         """
 
         self.name = name
@@ -50,6 +54,7 @@ class AeroComponent(ABC):
         self.symmetry_type = ''  # either 'xz-plane' or 'x-radial'
         self.radial_angle = None  # degrees of rotation around x-axis
         self.parent = None
+        self.actuator_model = actuator_model
 
         # Mesh and Position Attributes
         self.mesh: Optional[pv.PolyData] = None
@@ -81,6 +86,13 @@ class AeroComponent(ABC):
         :param: parent: The AeroVehicle that the component belongs to
         """
         self.parent = parent
+
+    def set_actuator(self, actuator: ActuatorModel):
+        self.actuator_model = actuator
+
+    #def get_actuator(self, u: ca.MX) -> ca.Function:
+    #    pass
+
 
     def get_forces_and_moment_lookup(self, state: np.ndarray, deflection=0) -> Tuple[np.ndarray, np.ndarray]:
         """

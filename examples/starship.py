@@ -2,6 +2,8 @@ import aerosandbox as asb
 import aerosandbox.numpy as np
 
 from scipy.interpolate import splprep, splev
+
+from FlightCanvas.actuators import ActuatorModel, FirstOrderDeflection
 from FlightCanvas.components.aero_fuselage import AeroFuselage
 from FlightCanvas.aero_vehicle import AeroVehicle
 from FlightCanvas.components.aero_wing import create_planar_wing_pair, AeroWing
@@ -121,7 +123,8 @@ if __name__ == '__main__':
         xsecs=front_flap_xsecs,
         translation=[5, 2.9, 0],  # Apply translation to the whole pair
         ref_direction=[1, 0.18, 0],
-        control_pivot=[1, 0.18, 0]
+        control_pivot=[1, 0.18, 0],
+        actuator_model=FirstOrderDeflection(time_constant=0.1)
     )
 
     back_flap_length = 15
