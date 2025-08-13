@@ -291,7 +291,6 @@ class AeroVehicle:
         :param size: The size of the elements in the debug window
         :param label: If true, labels of the elements in the debug window
         """
-
         default_sphere_radius = 0.02
         sphere_radius = default_sphere_radius * 2 ** (size - 1)
 
