@@ -281,9 +281,9 @@ class AeroVehicle:
 
         f_expl_expr = ca.vertcat(vel_I, v_dot, quat_dot, omega_dot)
 
-        dt = 0.01
+        dt = 0.02
         ode = {'x': state, 'ode': f_expl_expr}
-        integ_options = {'tf': dt, 'simplify': True, 'number_of_finite_elements': 4}
+        integ_options = {'t0': 0, 'tf': dt, 'simplify': True, 'number_of_finite_elements': 4}
         integrator = ca.integrator('integrator', 'rk', ode, integ_options)
 
         # 3. --- Run the Simulation Loop ---

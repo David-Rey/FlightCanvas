@@ -462,7 +462,7 @@ def translation_matrix(
 
 def dir_cosine_np(q) -> np.ndarray:
     """
-    Returns a 3x3 numpy array that rotates from BODY frame to INERTIAL frame.
+    Returns a 3x3 numpy array that rotates from INERTIAL frame to BODY frame.
     """
     return np.array([
         [1 - 2 * (q[2] ** 2 + q[3] ** 2), 2 * (q[1] * q[2] + q[0] * q[3]), 2 * (q[1] * q[3] - q[0] * q[2])],
@@ -473,17 +473,16 @@ def dir_cosine_np(q) -> np.ndarray:
 
 def dir_cosine_ca(q) -> ca.Function:
     """
-    Returns a 3x3 casadi matrix that rotates from BODY frame to INERTIAL frame.
+    Returns a 3x3 casadi matrix that rotates from INERTIAL frame to BODY frame.
     """
     q0, q1, q2, q3 = q[0], q[1], q[2], q[3]
 
     # DCM for q = [w, x, y, z]
     return ca.vertcat(
-        ca.horzcat(1 - 2 * (q2**2 + q3**2), 2 * (q1 * q2 + q0 * q3), 2 * (q1 * q3 - q0 * q2)),
-        ca.horzcat(2 * (q1 * q2 - q0 * q3), 1 - 2 * (q1**2 + q3**2), 2 * (q2 * q3 + q0 * q1)),
+        ca.horzcat(1 - 2 * (q2 ** 2 + q3 ** 2), 2 * (q1 * q2 + q0 * q3), 2 * (q1 * q3 - q0 * q2)),
+        ca.horzcat(2 * (q1 * q2 - q0 * q3), 1 - 2 * (q1 ** 2 + q3 ** 2), 2 * (q2 * q3 + q0 * q1)),
         ca.horzcat(2 * (q1 * q3 + q0 * q2), 2 * (q2 * q3 - q0 * q1), 1 - 2 * (q1 ** 2 + q2 ** 2))
     )
-
 
 
 def euler_to_quat(a):
