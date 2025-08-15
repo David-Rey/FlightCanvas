@@ -50,12 +50,13 @@ if __name__ == '__main__':
         pos_0 = np.array([0, 0, 950])  # Initial position
         vel_0 = np.array([100, 0, 0])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
-        omega_0 = np.array([0, 0, 0])  # Initial angular velocity
+        omega_0 = np.array([0, 0, 2])  # Initial angular velocity
         tf = 10
 
         #aero_vehicle.test_casadi(pos_0, vel_0, quat_0, omega_0)
 
-        t_arr, x_arr = aero_vehicle.run_sim_casadi(pos_0, vel_0, quat_0, omega_0, tf, gravity=False)
+        t_arr, x_arr = aero_vehicle.run_sim_casadi(pos_0, vel_0, quat_0, omega_0, tf, gravity=True)
+        #t_arr, x_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, gravity=True)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
         aero_vehicle.animate(t_arr, x_arr, debug=False)
     else:

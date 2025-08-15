@@ -45,11 +45,11 @@ class BuildupManager:
         self.asb_data = None  # To hold the aero build data
         self.aero_interpolants = None  # To hold the CasADi interpolant object
 
-    def get_forces_and_moments(self, alpha: float, beta: float, velocity: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def get_forces_and_moments(self, alpha: float, beta: float, speed: float) -> Tuple[np.ndarray, np.ndarray]:
         """
         TODO
         """
-        scale_factor = (np.linalg.norm(velocity) / self.operating_velocity) ** 2
+        scale_factor = (speed / self.operating_velocity) ** 2
 
         # Get the alpha and beta axes from the pre-computed grid (in radians)
         alpha_lin_rad = np.deg2rad(self.alpha_grid[:, 0])
@@ -107,7 +107,7 @@ class BuildupManager:
         # Store both interpolants
         self.aero_interpolants = (F_b_interpolant, M_b_interpolant)
 
-    def get_forces_and_moments_casadi(self, alpha: ca.MX, beta: ca.MX, velocity: ca.MX) -> tuple[ca.MX, ca.MX]:
+    def get_forces_and_moments_casadi(self, alpha: ca.MX, beta: ca.MX, speed: ca.MX) -> tuple[ca.MX, ca.MX]:
         """
         Computes aerodynamic forces and moments using pre-computed CasADi interpolants.
         """
@@ -122,7 +122,7 @@ class BuildupManager:
         F_b_interp_func, M_b_interp_func = self.aero_interpolants
 
         # --- Perform Symbolic Lookup ---
-        scale_factor = (velocity / self.operating_velocity) ** 2
+        scale_factor = (speed / self.operating_velocity) ** 2
         interp_input = ca.vcat([alpha, beta])
 
         # Perform the lookups separately
@@ -365,7 +365,7 @@ class BuildupManager:
         # Create symbolic variables as placeholders for the inputs
         alpha_sym = ca.MX.sym('alpha')
         beta_sym = ca.MX.sym('beta')
-        velocity_sym = ca.MX.sym('velocity', 3)
+        velocity_sym = ca.MX.sym('velocity')
 
         # Get the symbolic output expressions from the CasADi function
         F_b_sym, M_b_sym = self.get_forces_and_moments_casadi(alpha_sym, beta_sym, velocity_sym)
