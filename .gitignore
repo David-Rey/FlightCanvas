@@ -1,0 +1,6 @@
+*.pyc
+*.idea
+animation.mp4
+vehicle_saves
+tests/export
+acados_ocp.json
