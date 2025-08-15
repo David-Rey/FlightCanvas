@@ -79,11 +79,11 @@ if __name__ == '__main__':
     )
 
     # DEBUG
-    animate = 0
+    animate = 1
 
-    aero_vehicle.compute_buildup()
-    aero_vehicle.save_buildup()
-    aero_vehicle.save_buildup_fig()
+    #aero_vehicle.compute_buildup()
+    #aero_vehicle.save_buildup()
+    #aero_vehicle.save_buildup_fig()
     aero_vehicle.load_buildup()
 
     if animate:
@@ -93,9 +93,10 @@ if __name__ == '__main__':
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
         tf = 40
 
-        t_arr, x_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, print_debug=False)
+        #t_arr, x_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, print_debug=False)
+        t_arr, x_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
-        aero_vehicle.animate(t_arr, x_arr, cam_distance=4)
+        aero_vehicle.animate(t_arr, x_arr, cam_distance=10)
     else:
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=0.8)
         aero_vehicle.init_debug()

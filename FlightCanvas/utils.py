@@ -2,7 +2,7 @@ import aerosandbox.geometry.mesh_utilities as mesh_utils
 import pyvista as pv
 import numpy as np
 from typing import List, Union
-from numba import jit
+import casadi as ca
 
 
 def get_mesh(abs_mesh, translation_vector=None, **kwargs):
@@ -291,6 +291,78 @@ def rotation_matrix_from_vectors(
         return T
 
 
+def rotation_matrix_from_axis_angle_casadi(
+        axis: Union[np.ndarray, List[float]],
+        angle_rad: ca.MX
+) -> ca.MX:
+    """
+    Computes a 4x4 transformation matrix that rotates around a given 3D axis
+    by a specified symbolic angle using CasADi.
+
+    This function implements Rodrigues' Rotation Formula symbolically.
+
+    Args:
+        axis (Union[np.ndarray, List[float]]): The 3D vector representing the
+                                                 axis of rotation. This is a
+                                                 fixed, numerical value. It
+                                                 will be normalized internally.
+        angle_rad (ca.MX): The symbolic rotation angle in radians (a CasADi variable).
+
+    Returns:
+        ca.MX: A 4x4 symbolic transformation matrix.
+
+    Raises:
+        ValueError: If the input axis vector is a zero vector.
+    """
+    # --- 1. Handle the numerical axis vector ---
+    axis_np = np.array(axis, dtype=float)
+
+    # Normalize the axis vector
+    norm_axis = np.linalg.norm(axis_np)
+    if norm_axis < 1e-9:  # Use a small tolerance for floating point
+        raise ValueError("The rotation 'axis' vector cannot be a zero vector.")
+    unit_axis = axis_np / norm_axis
+
+    # Extract components of the unit axis vector
+    kx, ky, kz = unit_axis
+
+    # --- 2. Handle the symbolic angle ---
+    # Pre-calculate sine and cosine of the symbolic angle
+    cos_theta = ca.cos(angle_rad)
+    sin_theta = ca.sin(angle_rad)
+
+    # Calculate (1 - cos_theta) for efficiency
+    one_minus_cos_theta = 1 - cos_theta
+
+    # --- 3. Construct constant matrices in CasADi format ---
+    # Construct the skew-symmetric cross-product matrix (K)
+    K = ca.MX(np.array([
+        [0, -kz, ky],
+        [kz, 0, -kx],
+        [-ky, kx, 0]
+    ]))
+
+    # The identity matrix
+    identity_matrix = ca.MX.eye(3)
+
+    # K_squared = K @ K
+    # This can be pre-calculated as it does not depend on the angle.
+    K_squared = K @ K
+
+    # --- 4. Apply Rodrigues' rotation formula symbolically ---
+    # R = I + sin(theta) * K + (1 - cos(theta)) * K^2
+    R = identity_matrix + sin_theta * K + one_minus_cos_theta * K_squared
+
+    # --- 5. Embed the 3x3 rotation into a 4x4 transformation matrix ---
+    # Start with a 4x4 identity matrix
+    T = ca.MX.eye(4)
+
+    # Insert the 3x3 symbolic rotation matrix into the top-left block
+    T[:3, :3] = R
+
+    return T
+
+
 def rotation_matrix_from_axis_angle(
         axis: Union[np.ndarray, List[float]],
         angle_rad: float
@@ -388,7 +460,7 @@ def translation_matrix(
     return transform_matrix
 
 
-def dir_cosine_np(q):
+def dir_cosine_np(q) -> np.ndarray:
     """
     Returns a 3x3 numpy array that rotates from BODY frame to INERTIAL frame.
     """
@@ -397,6 +469,20 @@ def dir_cosine_np(q):
         [2 * (q[1] * q[2] - q[0] * q[3]), 1 - 2 * (q[1] ** 2 + q[3] ** 2), 2 * (q[2] * q[3] + q[0] * q[1])],
         [2 * (q[1] * q[3] + q[0] * q[2]), 2 * (q[2] * q[3] - q[0] * q[1]), 1 - 2 * (q[1] ** 2 + q[2] ** 2)]
     ])
+
+
+def dir_cosine_ca(q) -> ca.Function:
+    """
+    Returns a 3x3 casadi matrix that rotates from BODY frame to INERTIAL frame.
+    """
+    q0, q1, q2, q3 = q[0], q[1], q[2], q[3]
+
+    # DCM for q = [w, x, y, z]
+    return ca.vertcat(
+        ca.horzcat(1 - 2 * (q2 ** 2 + q3 ** 2), 2 * (q1 * q2 - q0 * q3), 2 * (q1 * q3 + q0 * q2)),
+        ca.horzcat(2 * (q1 * q2 + q0 * q3), 1 - 2 * (q1 ** 2 + q3 ** 2), 2 * (q2 * q3 - q0 * q1)),
+        ca.horzcat(2 * (q1 * q3 - q0 * q2), 2 * (q2 * q3 + q0 * q1), 1 - 2 * (q1 ** 2 + q2 ** 2))
+    )
 
 
 def euler_to_quat(a):
@@ -464,12 +550,30 @@ def omega(w):
         [w[2], w[1], -w[0], 0],
     ])
 
+
+def omega_ca(w: ca.MX) -> ca.MX:
+    # Extract the components of the angular velocity vector
+    wx, wy, wz = w[0], w[1], w[2]
+
+    # Construct the Omega matrix using CasADi's horzcat and vertcat
+    # for creating matrices from symbolic components.
+    Omega = ca.vertcat(
+        ca.horzcat(0, -wx, -wy, -wz),
+        ca.horzcat(wx, 0, wz, -wy),
+        ca.horzcat(wy, -wz, 0, wx),
+        ca.horzcat(wz, wy, -wx, 0)
+    )
+
+    return Omega
+
+
 def normalize_quaternion(q):
     """
     Normalizes quaternion so that it is unit quaternion
     """
     norm = np.sqrt(np.sum(q ** 2))
     return q / norm
+
 
 def rotate_z(rotate_angle_deg):
     """
@@ -503,6 +607,7 @@ def interp_state(t_arr, x_arr, sim_time):
 
     return state
 
+
 def print_states(t_arr: np.ndarray, x_arr: np.ndarray):
     """
     :param t_arr: The time array
@@ -522,6 +627,7 @@ def print_states(t_arr: np.ndarray, x_arr: np.ndarray):
         print(f"  Quaternion: {quat}")
         print(f"  Angular Velocity (Body): {omega_B}")
         print("\n")
+
 
 '''
 def rotate_mesh_by_matrix(

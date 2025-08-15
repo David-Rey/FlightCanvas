@@ -38,11 +38,12 @@ class BuildupManager:
         self.include_Mx = include_Mx
         self.include_My = include_My
         self.include_Mz = include_Mz
-        self.include_arr = [include_Fx, include_Fy, include_Fz, include_Mx, include_My, include_Mz]
+        self.include_arr = np.array([include_Fx, include_Fy, include_Fz, include_Mx, include_My, include_Mz])
 
         self.alpha_grid = None  # Hold grid of an angle of attack for buildup
         self.beta_grid = None  # Hold grid of sideslip angles for buildup
         self.asb_data = None  # To hold the aero build data
+        self.aero_interpolants = None  # To hold the CasADi interpolant object
 
     def get_forces_and_moments(self, alpha: float, beta: float, velocity: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -65,6 +66,77 @@ class BuildupManager:
         # Set elements to zero if they are not included
         F_b = np.where(self.include_arr[:3], F_b, 0) * scale_factor
         M_b = np.where(self.include_arr[3:], M_b, 0) * scale_factor
+        return F_b, M_b
+
+    def _create_aero_interpolants(self):
+        """
+        Private helper method to create and cache the CasADi interpolant objects.
+        This is a one-time setup operation.
+        """
+        # 1. Get grid points in radians
+        alpha_lin_rad = np.deg2rad(self.alpha_grid[:, 0])
+        beta_lin_rad = np.deg2rad(self.beta_grid[0, :])
+        grid_axes = [alpha_lin_rad, beta_lin_rad]
+
+        # 2. Reshape data for forces and moments separately
+        F_b_data_grid = np.column_stack(self.asb_data["F_b"]).reshape(self.alpha_grid.shape + (3,))
+        M_b_data_grid = np.column_stack(self.asb_data["M_b"]).reshape(self.alpha_grid.shape + (3,))
+
+        F_b_data_grid_transposed = np.transpose(F_b_data_grid, axes=(1, 0, 2))
+        M_b_data_grid_transposed = np.transpose(M_b_data_grid, axes=(1, 0, 2))
+
+        # Flatten the data for each interpolant in column-major ('F') order.
+        F_b_data_flat = F_b_data_grid_transposed.ravel(order='C')
+        M_b_data_flat = M_b_data_grid_transposed.ravel(order='C')
+
+        # 3. Create two separate interpolants, mirroring the NumPy function's logic
+        sanitized_name = self.name.replace(" ", "_")
+        F_b_interpolant = ca.interpolant(
+            f'{sanitized_name}_ForcesLookup',
+            'linear',
+            grid_axes,
+            F_b_data_flat
+        )
+        M_b_interpolant = ca.interpolant(
+            f'{sanitized_name}_MomentsLookup',
+            'linear',
+            grid_axes,
+            M_b_data_flat
+        )
+
+        # Store both interpolants
+        self.aero_interpolants = (F_b_interpolant, M_b_interpolant)
+
+    def get_forces_and_moments_casadi(self, alpha: ca.MX, beta: ca.MX, velocity: ca.MX) -> tuple[ca.MX, ca.MX]:
+        """
+        Computes aerodynamic forces and moments using pre-computed CasADi interpolants.
+        """
+        if self.asb_data is None:
+            raise RuntimeError("Aero data not available. Run compute_buildup() or load_buildup() first.")
+
+        # If the interpolants haven't been created yet, create them now.
+        if self.aero_interpolants is None:
+            self._create_aero_interpolants()
+
+        # Unpack the force and moment interpolant functions
+        F_b_interp_func, M_b_interp_func = self.aero_interpolants
+
+        # --- Perform Symbolic Lookup ---
+        scale_factor = (velocity / self.operating_velocity) ** 2
+        interp_input = ca.vcat([alpha, beta])
+
+        # Perform the lookups separately
+        F_b_interp_flat = F_b_interp_func(interp_input)
+        M_b_interp_flat = M_b_interp_func(interp_input)
+
+        # The output of a vector interpolant is a flat list, so reshape to a 3x1 column vector
+        F_b_interp = ca.reshape(F_b_interp_flat, 3, 1)
+        M_b_interp = ca.reshape(M_b_interp_flat, 3, 1)
+
+        # Apply the include_arr mask and scale factor.
+        F_b = F_b_interp * self.include_arr[:3].reshape(-1, 1) * scale_factor
+        M_b = M_b_interp * self.include_arr[3:].reshape(-1, 1) * scale_factor
+
         return F_b, M_b
 
     def compute_buildup(self, asb_airplane: asb.Airplane):
@@ -270,3 +342,60 @@ class BuildupManager:
 
     def draw_error(self):
         pass
+
+    def test_lookup_consistency(self, alpha_deg: float, beta_deg: float, velocity_vec: np.ndarray):
+        """
+        Compares the numerical output of the NumPy and CasADi lookup functions
+        for a given operating point to ensure they are consistent.
+        """
+        print("\n--- Running Lookup Table Consistency Check ---")
+        if self.asb_data is None:
+            raise RuntimeError("Aero data not available. Run compute_buildup() or load_buildup() first.")
+
+        # --- Numerical Inputs ---
+        alpha_rad = np.deg2rad(alpha_deg)
+        beta_rad = np.deg2rad(beta_deg)
+
+        print(f"Test Point: alpha={alpha_deg:.2f} deg, beta={beta_deg:.2f} deg, velocity={velocity_vec}")
+
+        # --- 1. NumPy-based Calculation ---
+        F_b_numpy, M_b_numpy = self.get_forces_and_moments(alpha_rad, beta_rad, velocity_vec)
+
+        # --- 2. CasADi-based Calculation ---
+        # Create symbolic variables as placeholders for the inputs
+        alpha_sym = ca.MX.sym('alpha')
+        beta_sym = ca.MX.sym('beta')
+        velocity_sym = ca.MX.sym('velocity', 3)
+
+        # Get the symbolic output expressions from the CasADi function
+        F_b_sym, M_b_sym = self.get_forces_and_moments_casadi(alpha_sym, beta_sym, velocity_sym)
+
+        # Create a callable CasADi Function from the symbolic graph
+        evaluate_casadi_lookup = ca.Function(
+            'evaluate_casadi',
+            [alpha_sym, beta_sym, velocity_sym],
+            [F_b_sym, M_b_sym]
+        )
+
+        # Call the CasADi function with the numerical inputs
+        F_b_casadi_dm, M_b_casadi_dm = evaluate_casadi_lookup(alpha_rad, beta_rad, velocity_vec)
+
+        # Convert CasADi's DM matrix type to NumPy arrays for comparison
+        F_b_casadi = F_b_casadi_dm.full().flatten()
+        M_b_casadi = M_b_casadi_dm.full().flatten()
+
+        # --- 3. Comparison ---
+        print("\n--- NumPy Result ---")
+        print(f"Forces: {F_b_numpy}")
+        print(f"Moments: {M_b_numpy}")
+
+        print("\n--- CasADi Result ---")
+        print(f"Forces: {F_b_casadi}")
+        print(f"Moments: {M_b_casadi}")
+
+        force_diff = np.linalg.norm(F_b_numpy - F_b_casadi)
+        moment_diff = np.linalg.norm(M_b_numpy - M_b_casadi)
+
+        print("\n--- Difference (Norm) ---")
+        print(f"Force Difference:  {force_diff}")
+        print(f"Moment Difference: {moment_diff}")

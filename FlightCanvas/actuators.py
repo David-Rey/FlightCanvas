@@ -57,7 +57,7 @@ class FirstOrderDeflection(ActuatorModel):
         deflection_dot = (command - deflection) / self.tau
         return np.array([deflection_dot])
 
-    def get_casadi_expression(self, u: ca.MX) -> ca.Function:
+    def get_casadi_expression(self,  u: ca.MX) -> ca.Function:
         """
         Creates a CasADi symbolic function for the actuator dynamics
         :param u: The control input command

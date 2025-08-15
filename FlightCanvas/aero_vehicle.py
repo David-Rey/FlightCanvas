@@ -111,11 +111,13 @@ class AeroVehicle:
         # Set up casadi control variables
         self.ca_u = ca.MX.sym('control', num_commands)
 
-    def compute_forces_and_moments_lookup(self, state: np.ndarray, deflections: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def compute_forces_and_moments_lookup(self, state: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Computes the aerodynamic forces and moments on the vehicle by looking up
         pre-computed data for each component
         :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
+        :param deflections: TODO
+        :return: The computed forces and moments
         """
 
         F_b = np.zeros(3)
@@ -126,6 +128,23 @@ class AeroVehicle:
             #true_deflection = component.actuator(cmd_deflection)
             #F_b_comp, M_b_comp = component.get_forces_and_moment_lookup(state, deflection)
             F_b_comp, M_b_comp = component.get_forces_and_moment_lookup(state)
+            F_b += F_b_comp
+            M_b += M_b_comp
+
+        return F_b, M_b
+
+    def compute_forces_and_moments_casadi(self, state: ca.MX):
+        """
+        Computes the aerodynamic forces and moments on the vehicle by looking up
+        pre-computed data for each component
+        :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
+        """
+
+        F_b = ca.MX.zeros(3, 1)
+        M_b = ca.MX.zeros(3, 1)
+
+        for component in self.components:
+            F_b_comp, M_b_comp = component.get_forces_and_moment_casadi(state)
             F_b += F_b_comp
             M_b += M_b_comp
 
@@ -159,7 +178,7 @@ class AeroVehicle:
                 component.update_transform(rotation=rotation_command)
 
     def run_sim(self, pos_0, vel_0, quat_0, omega_0, tf, N=500, gravity=True, print_debug=False,
-                open_loop_control=None) -> Tuple[np.ndarray, np.ndarray]:
+                open_loop_control=None) -> tuple[np.ndarray, np.ndarray]:
         """
         Runs simulation of 6 Degree of Freedom model with no control
         :param pos_0: The initial position [x, y, z] (m)
@@ -204,7 +223,7 @@ class AeroVehicle:
                 #true_deflection =
 
             # Forces and moments (in the body frame)
-            F_B, M_B = self.compute_forces_and_moments_lookup(state, cmd_deflections)
+            F_B, M_B = self.compute_forces_and_moments_lookup(state)
 
             C_B_I = utils.dir_cosine_np(quat)  # From body to internal
             C_I_B = C_B_I.transpose()
@@ -226,6 +245,114 @@ class AeroVehicle:
         t_eval = np.linspace(t_span[0], t_span[1], N)  # Time points for output
         solution = solve_ivp(dynamics_6DOF, t_span, state_0, t_eval=t_eval, rtol=1e-5, atol=1e-5)
         return t_eval, solution['y']
+
+    def run_sim_casadi(self, pos_0, vel_0, quat_0, omega_0, tf, gravity=True) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Runs simulation of 6 Degree of Freedom model with no control
+        :param pos_0: The initial position [x, y, z] (m)
+        :param vel_0: The initial velocity [x, y, z] (m/s)
+        :param quat_0: The initial quaternion [q0, q1, q2, q3]
+        :param omega_0: The initial omega [x, y, z] (rad/s)
+        :param tf: The time of simulation (s)
+        :param gravity: Boolean for active gravity
+        """
+        g = np.array([0, 0, -9.81]) if gravity else np.array([0, 0, 0])
+
+        pos_I = ca.MX.sym('pos_I', 3)  # Position in inertial frame
+        vel_I = ca.MX.sym('vel_I', 3)  # Velocity in inertial frame
+        quat = ca.MX.sym('quat', 4)  # Quaternion (q0, q1, q2, q3)
+        omega_B = ca.MX.sym('omega_B', 3)  # Angular velocity in body frame
+
+        state = ca.vertcat(pos_I, vel_I, quat, omega_B)
+
+        F_B, M_B = self.compute_forces_and_moments_casadi(state)
+
+        C_I_B = utils.dir_cosine_ca(quat).T
+        F_I = (C_I_B @ F_B) + self.mass * g
+
+        v_dot = F_I / self.mass
+        J_B = ca.MX(self.moi)
+        J_B_inv = ca.inv(J_B)
+        omega_B_cross = ca.cross(omega_B, J_B @ omega_B)
+
+        # Use ca.solve for a more stable inverse, or ca.inv
+        omega_dot = J_B_inv @ M_B - omega_B_cross
+        quat_dot = 0.5 * utils.omega_ca(omega_B) @ quat
+
+        f_expl_expr = ca.vertcat(vel_I, v_dot, quat_dot, omega_dot)
+
+        dt = 0.01
+        ode = {'x': state, 'ode': f_expl_expr}
+        integ_options = {'tf': dt, 'simplify': True, 'number_of_finite_elements': 4}
+        integrator = ca.integrator('integrator', 'rk', ode, integ_options)
+
+        # 3. --- Run the Simulation Loop ---
+        x0 = np.concatenate([pos_0, vel_0, quat_0, omega_0])
+        N = int(tf / dt)
+
+        # Use lists to store the history
+        x_history = [x0]
+        t_history = [0.0]
+        current_x = x0
+        current_t = 0.0
+
+        for _ in range(N):
+            # Step the integrator
+            res = integrator(x0=current_x)
+            current_x = res['xf'].full().flatten()
+            current_t += dt
+
+            # Normalize the quaternion to prevent drift
+            current_x[6:10] /= np.linalg.norm(current_x[6:10])
+
+            # Store results
+            x_history.append(current_x)
+            t_history.append(current_t)
+
+        # Convert lists to NumPy arrays for the return
+        return np.array(t_history), np.array(x_history)
+
+    def test_casadi(self, pos_0, vel_0, quat_0, omega_0):
+        state_num = np.concatenate((pos_0, vel_0, quat_0, omega_0))
+        #F_B, M_B = self.compute_forces_and_moments_casadi(state)
+        #F_B, M_B = self.compute_forces_and_moments_lookup(state)
+
+        state_sym = ca.MX.sym('state', state_num.shape[0])
+
+        # 3. Get the symbolic expressions for F_B and M_B by calling the function with the symbolic state
+        F_B_sym, M_B_sym = self.compute_forces_and_moments_casadi(state_sym)
+
+        # 4. Create a CasADi Function
+        # This maps the symbolic state to your symbolic force and moment expressions
+        calculate_aero_casadi = ca.Function(
+            'calculate_aero',  # A name for the function
+            [state_sym],  # A list of symbolic inputs
+            [F_B_sym, M_B_sym]  # A list of symbolic outputs
+        )
+
+        # 5. Call the function with your numerical state to get the numerical result
+        F_B_casadi_result, M_B_casadi_result = calculate_aero_casadi(state_num)
+
+        # Convert the CasADi DM output to a NumPy array
+        F_B_casadi_np = F_B_casadi_result.full().flatten()
+        M_B_casadi_np = M_B_casadi_result.full().flatten()
+
+        # --- NumPy Evaluation ---
+        F_B_numpy, M_B_numpy = self.compute_forces_and_moments_lookup(state_num)
+
+        # --- Comparison ---
+        print("--- CasADi Result ---")
+        print("Forces:", F_B_casadi_np)
+        print("Moments:", M_B_casadi_np)
+
+        print("\n--- NumPy Result ---")
+        print("Forces:", F_B_numpy)
+        print("Moments:", M_B_numpy)
+
+        self.components[0].buildup_manager.test_lookup_consistency(10, 1, 100)
+
+
+
 
     def init_buildup_manager(self):
         """
