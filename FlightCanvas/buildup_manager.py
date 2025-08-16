@@ -10,6 +10,7 @@ import pickle
 from FlightCanvas import utils
 from typing import Tuple
 import casadi as ca
+from typing import Union
 
 
 class BuildupManager:
@@ -45,7 +46,20 @@ class BuildupManager:
         self.asb_data = None  # To hold the aero build data
         self.aero_interpolants = None  # To hold the CasADi interpolant object
 
-    def get_forces_and_moments(self, alpha: float, beta: float, speed: float) -> Tuple[np.ndarray, np.ndarray]:
+    def get_forces_and_moments(self, alpha: Union[float, ca.MX], beta: Union[float, ca.MX], speed: Union[float, ca.MX]) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
+        """
+        Computes forces and moments. This function is type-aware and will use
+        either NumPy or CasADi based on the input type.
+        """
+        is_casadi = isinstance(speed, (ca.SX, ca.MX))
+
+        if is_casadi:
+            return self._get_forces_and_moments_ca(alpha, beta, speed)
+        else:
+            return self._get_forces_and_moments_np(alpha, beta, speed)
+
+
+    def _get_forces_and_moments_np(self, alpha: float, beta: float, speed: float) -> tuple[np.ndarray, np.ndarray]:
         """
         TODO
         """
@@ -107,7 +121,7 @@ class BuildupManager:
         # Store both interpolants
         self.aero_interpolants = (F_b_interpolant, M_b_interpolant)
 
-    def get_forces_and_moments_casadi(self, alpha: ca.MX, beta: ca.MX, speed: ca.MX) -> tuple[ca.MX, ca.MX]:
+    def _get_forces_and_moments_ca(self, alpha: ca.MX, beta: ca.MX, speed: ca.MX) -> tuple[ca.MX, ca.MX]:
         """
         Computes aerodynamic forces and moments using pre-computed CasADi interpolants.
         """
