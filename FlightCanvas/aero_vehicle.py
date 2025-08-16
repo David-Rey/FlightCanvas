@@ -1,6 +1,6 @@
 # aero_project/FlightCanvas/aero_vehicle.py
 
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Optional, Any
 import pyvista as pv
 import aerosandbox.numpy as np
 from FlightCanvas import utils
@@ -111,7 +111,7 @@ class AeroVehicle:
         # Set up casadi control variables
         self.ca_u = ca.MX.sym('control', num_commands)
 
-    def compute_forces_and_moments(self, state: Union[np.ndarray, ca.MX]) -> tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
+    def compute_forces_and_moments(self, state: Union[np.ndarray, ca.MX]) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Computes the aerodynamic forces and moments on the vehicle. This function
         is type-aware and will use either NumPy or CasADi based on the input type.
@@ -129,7 +129,6 @@ class AeroVehicle:
 
         # For each component, look up the forces and moments based on its local flow conditions
         for component in self.components:
-            #F_b_comp, M_b_comp = component.get_forces_and_moment_lookup(state)
             F_b_comp, M_b_comp = component.get_forces_and_moments(state)
             F_b += F_b_comp
             M_b += M_b_comp
@@ -163,8 +162,19 @@ class AeroVehicle:
                 # Update the component's transformation matrix with the new rotation.
                 component.update_transform(rotation=rotation_command)
 
-    def run_sim(self, pos_0, vel_0, quat_0, omega_0, tf, N=500, gravity=True, print_debug=False,
-                open_loop_control=None) -> tuple[np.ndarray, np.ndarray]:
+    def run_sim(
+            self,
+            pos_0: np.ndarray,
+            vel_0: np.ndarray,
+            quat_0: np.ndarray,
+            omega_0: np.ndarray,
+            tf: float,
+            dt: float = 0.02,
+            gravity: bool = True,
+            casadi: bool = True,
+            print_debug: bool = False,
+            open_loop_control: Optional[Any] = None
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Runs simulation of 6 Degree of Freedom model with no control
         :param pos_0: The initial position [x, y, z] (m)
@@ -172,130 +182,123 @@ class AeroVehicle:
         :param quat_0: The initial quaternion [q0, q1, q2, q3]
         :param omega_0: The initial omega [x, y, z] (rad/s)
         :param tf: The time of simulation (s)
-        :param N: The number of simulation steps
+        :param dt: The fixed time step for the integrator
         :param gravity: Boolean for active gravity
+        :param casadi: If True, uses the CasADi integrator; otherwise, uses SciPy
         :param print_debug: Boolean for printing debugging information
         :param open_loop_control: Open loop control object that commands the aero vehicle
         :return: The time and state for every simulation step
         """
+        if casadi:
+            # Call the CasADi-specific simulation function
+            return self._run_sim_casadi(pos_0, vel_0, quat_0, omega_0, tf, dt, gravity)
+        else:
+            # Call the SciPy/NumPy-specific simulation function
+            return self._run_sim_scipy(pos_0, vel_0, quat_0, omega_0, tf, dt, gravity, print_debug, open_loop_control)
 
-        # Gravity in the inertial frame
+    def _run_sim_scipy(
+        self,
+        pos_0: np.ndarray,
+        vel_0: np.ndarray,
+        quat_0: np.ndarray,
+        omega_0: np.ndarray,
+        tf: float,
+        dt: float,
+        gravity: bool,
+        print_debug: bool,
+        open_loop_control: Optional[Any]
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Runs a 6DoF simulation using SciPy's adaptive-step ODE solver.
+        """
         g = np.array([0, 0, -9.81]) if gravity else np.array([0, 0, 0])
 
-        def dynamics_6DOF(t: float, state: np.ndarray) -> np.ndarray:
-            """
-            Propagates 6 Degree of Freedom dynamics and returns the derivative of the state vector (x_dot)
-            :param t: The current time
-            :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
-            :return: The derivative of the state vector (x_dot)
-            """
-            pos_I = state[:3]  # Position in the inertial frame
-            vel_I = state[3:6]  # Velocity in the inertial frame
-            quat = state[6:10]  # Orientation as a quaternion
-            omega_B = state[10:13]  # Angular velocity in the body frame
+        def dynamics_6dof(t: float, state: np.ndarray) -> np.ndarray:
+            vel_I = state[3:6]
+            quat = state[6:10]
+            omega_B = state[10:13]
 
             if print_debug:
-                print(f"  Time {t}")
-                print(f"  Position (Inertial): {pos_I}")
-                print(f"  Velocity (Inertial): {vel_I}")
-                print(f"  Quaternion: {quat}")
-                print(f"  Angular Velocity (Body): {omega_B}")
-                print("\n")
+                print(f"Time: {t:.2f} s")
 
-            cmd_deflections = None
             if open_loop_control is not None:
-                mu = open_loop_control.get_u(t)  # TODO
-                cmd_deflections = self.allocation_matrix @ mu
-                #true_deflection =
+                mu = open_loop_control.get_u(t)
+                # Placeholder for control logic...
+                # cmd_deflections = self.allocation_matrix @ mu
+                # self.update_control_surfaces(cmd_deflections)
 
-            # Forces and moments (in the body frame)
             F_B, M_B = self.compute_forces_and_moments(state)
-
             C_I_B = utils.dir_cosine_np(quat).T
-
             F_I = (C_I_B @ F_B) + self.mass * g
-
-            # Equations of motion for a 6DoF object
             v_dot = F_I / self.mass
+
             J_B = np.array(self.moi)
             omega_dot = np.linalg.inv(J_B) @ (M_B - np.cross(omega_B, J_B @ omega_B))
             quat_dot = 0.5 * utils.omega(omega_B) @ quat
             return np.concatenate((vel_I, v_dot, quat_dot, omega_dot))
 
-        # Initial state
         state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
+        t_span = (0, tf)
 
-        # Time span for the simulation
-        t_span = (0, tf)  # Simulate for tf seconds
-        t_eval = np.linspace(t_span[0], t_span[1], N)  # Time points for output
-        solution = solve_ivp(dynamics_6DOF, t_span, state_0, t_eval=t_eval, rtol=1e-5, atol=1e-5)
-        return t_eval, solution['y']
+        num_points = int(tf / dt) + 1
 
-    def run_sim_casadi(self, pos_0, vel_0, quat_0, omega_0, tf, gravity=True) -> tuple[np.ndarray, np.ndarray]:
+        # Create the array of time points for the solver to output
+        t_eval = np.linspace(t_span[0], t_span[1], num_points)
+
+        solution = solve_ivp(dynamics_6dof, t_span, state_0, t_eval=t_eval, rtol=1e-5, atol=1e-5)
+        return solution['t'], solution['y']
+
+    def _run_sim_casadi(
+        self,
+        pos_0: np.ndarray,
+        vel_0: np.ndarray,
+        quat_0: np.ndarray,
+        omega_0: np.ndarray,
+        tf: float,
+        dt: float,
+        gravity: bool
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Runs simulation of 6 Degree of Freedom model with no control
-        :param pos_0: The initial position [x, y, z] (m)
-        :param vel_0: The initial velocity [x, y, z] (m/s)
-        :param quat_0: The initial quaternion [q0, q1, q2, q3]
-        :param omega_0: The initial omega [x, y, z] (rad/s)
-        :param tf: The time of simulation (s)
-        :param gravity: Boolean for active gravity
+        Runs a 6DoF simulation using a fixed-step CasADi RK4 integrator.
         """
         g = np.array([0, 0, -9.81]) if gravity else np.array([0, 0, 0])
 
-        pos_I = ca.MX.sym('pos_I', 3)  # Position in inertial frame
-        vel_I = ca.MX.sym('vel_I', 3)  # Velocity in inertial frame
-        quat = ca.MX.sym('quat', 4)  # Quaternion (q0, q1, q2, q3)
-        omega_B = ca.MX.sym('omega_B', 3)  # Angular velocity in body frame
-
+        # Define Symbolic State and Dynamics
+        pos_I = ca.MX.sym('pos_I', 3)
+        vel_I = ca.MX.sym('vel_I', 3)
+        quat = ca.MX.sym('quat', 4)
+        omega_B = ca.MX.sym('omega_B', 3)
         state = ca.vertcat(pos_I, vel_I, quat, omega_B)
 
         F_B, M_B = self.compute_forces_and_moments(state)
-
         C_I_B = utils.dir_cosine_ca(quat).T
         F_I = (C_I_B @ F_B) + self.mass * g
-
         v_dot = F_I / self.mass
+
         J_B = ca.MX(self.moi)
-        J_B_inv = ca.inv(J_B)
-        omega_B_cross = ca.cross(omega_B, J_B @ omega_B)
-
-        # Use ca.solve for a more stable inverse, or ca.inv
-        omega_dot = J_B_inv @ M_B - omega_B_cross
+        omega_dot = ca.inv(J_B) @ (M_B - ca.cross(omega_B, J_B @ omega_B))
         quat_dot = 0.5 * utils.omega_ca(omega_B) @ quat
-
         f_expl_expr = ca.vertcat(vel_I, v_dot, quat_dot, omega_dot)
 
-        dt = 0.02
+        # Create the Integrator
         ode = {'x': state, 'ode': f_expl_expr}
         integ_options = {'t0': 0, 'tf': dt, 'simplify': True, 'number_of_finite_elements': 4}
         integrator = ca.integrator('integrator', 'rk', ode, integ_options)
 
-        # 3. --- Run the Simulation Loop ---
+        # Run the Simulation Loop
         x0 = np.concatenate([pos_0, vel_0, quat_0, omega_0])
-        N = int(tf / dt)
-
-        # Use lists to store the history
+        num_steps = int(tf / dt)
         x_history = [x0]
-        t_history = [0.0]
         current_x = x0
-        current_t = 0.0
 
-        for _ in range(N):
-            # Step the integrator
+        for _ in range(num_steps):
             res = integrator(x0=current_x)
             current_x = res['xf'].full().flatten()
-            current_t += dt
-
-            # Normalize the quaternion to prevent drift
-            current_x[6:10] /= np.linalg.norm(current_x[6:10])
-
-            # Store results
+            current_x[6:10] /= np.linalg.norm(current_x[6:10])  # Normalize quaternion
             x_history.append(current_x)
-            t_history.append(current_t)
 
-        # Convert lists to NumPy arrays for the return
-        return np.array(t_history), np.array(x_history).T
+        t_eval = np.linspace(0, tf, num_steps + 1)
+        return t_eval, np.array(x_history).T
 
     def init_buildup_manager(self):
         """

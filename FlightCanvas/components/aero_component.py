@@ -112,6 +112,7 @@ class AeroComponent(ABC):
         """
         Calculates the aerodynamic forces and moments on the component.
         This function is type-aware and will use either NumPy or CasADi based on the input type.
+        :param state: The state vector (position, velocity, quaternion, angular velocity) in either CasADi or NumPy.
         """
         is_casadi = isinstance(state, (ca.SX, ca.MX))
 
@@ -131,15 +132,26 @@ class AeroComponent(ABC):
             to_type = lambda x: x
             norm = np.linalg.norm
 
-        # --- Perform Calculations Once ---
+        # Compute direction cosine function
         C_B_I = dir_cosine_func(quat)
+
+        # get velocity of the body
         v_B = C_B_I @ vel
+
+        # get rotation matrix from transform matrix
         T = to_type(self.static_transform_matrix)
         R = T[:3, :3]
+
+        # get reference point to either numpy or casadi
         xyz_ref_typed = to_type(self.xyz_ref)
+
+        # get local velocity of the component
         v_comp = R @ v_B - lib.cross(angular_rate, xyz_ref_typed)
+
+        # get airspeed of component
         speed = norm(v_comp)
 
+        # compute angle of attack and sideslip
         alpha, beta = get_rel_alpha_beta(v_comp)
 
         # if component is main then use buildup manager, else use symmetric component buildup manager
@@ -174,7 +186,6 @@ class AeroComponent(ABC):
         """
         Returns the forces and moments reflected in the xz plane.
         Switches between NumPy and CasADi based on input type.
-
         :param alpha: Angle of attack (float for NumPy, ca.MX for CasADi)
         :param beta: Side slip angle (float for NumPy, ca.MX for CasADi)
         :param speed: Velocity (float for NumPy, ca.MX for CasADi)
@@ -305,7 +316,7 @@ class AeroComponent(ABC):
             eye_func = np.eye
             to_type = lambda x: x
 
-        # --- 2. Calculate Static Transformation Matrices (as NumPy arrays first) ---
+        # Calculate Static Transformation Matrices
         x_vec = np.array([1, 0, 0])
         flip_matrix = np.eye(4)
         axial_rotation_matrix = np.eye(4)
