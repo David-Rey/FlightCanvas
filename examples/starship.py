@@ -188,16 +188,16 @@ if __name__ == '__main__':
     aero_vehicle.set_control_mapping(control_mapping)
 
     # DEBUG
-    animate = 0
+    animate = 1
 
-    #aero_vehicle.compute_buildup()
+    aero_vehicle.compute_buildup()
     #aero_vehicle.save_buildup()
     #aero_vehicle.save_buildup_fig()
-    aero_vehicle.load_buildup()
+    #aero_vehicle.load_buildup()
 
     front_flap_del = np.deg2rad(40)
     back_flap_del = np.deg2rad(10)
-    control_arr = np.array([front_flap_del, front_flap_del, back_flap_del, -back_flap_del])
+    control_arr = np.array([front_flap_del, front_flap_del, back_flap_del, back_flap_del])
     aero_vehicle.set_control(control_arr)
 
     if animate:

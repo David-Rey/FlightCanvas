@@ -182,7 +182,7 @@ class AeroComponent(ABC):
 
         # if component is main then use buildup manager, else use symmetric component buildup manager
         if self.is_prime:
-            F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, v_comp)
+            F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, speed)
         else:
             # if the component is reflected around xz plane then use get_forces_and_moment_xz_plane function
             if self.symmetry_type == 'xz-plane':
