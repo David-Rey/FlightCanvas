@@ -17,14 +17,14 @@ class AeroFuselage(AeroComponent):
     """
 
     def __init__(
-            self,
-            name: str,
-            xsecs: List["asb.FuselageXSec"],
-            ref_direction: Union[np.ndarray, List[float]] = (1, 0, 0),
-            is_prime: bool = True,
-            symmetric_comp: Optional['AeroComponent'] = None,
-            actuator_model: Optional[ActuatorModel] = None,
-            **kwargs,
+        self,
+        name: str,
+        xsecs: List["asb.FuselageXSec"],
+        ref_direction: Union[np.ndarray, List[float]] = (1, 0, 0),
+        is_prime: bool = True,
+        symmetric_comp: Optional['AeroComponent'] = None,
+        actuator_model: Optional[ActuatorModel] = None,
+        **kwargs,
     ):
         """
         Initializes the AeroFuselage component

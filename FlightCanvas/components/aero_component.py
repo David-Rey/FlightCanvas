@@ -40,12 +40,14 @@ class AeroComponent(ABC):
     Represents a single, physical component.
     """
 
-    def __init__(self, name: str,
-                 ref_direction: Union[np.ndarray, List[float]],
-                 control_pivot=None,
-                 is_prime=True,
-                 symmetric_comp: Optional['AeroComponent'] = None,
-                 actuator_model: Optional[ActuatorModel] = None, ):
+    def __init__(
+        self,
+        name: str,
+        ref_direction: Union[np.ndarray, List[float]],
+        control_pivot=None,
+        is_prime=True,
+        symmetric_comp: Optional['AeroComponent'] = None,
+        actuator_model: Optional[ActuatorModel] = None, ):
         """
         :param name: The name of the component
         :param ref_direction: The primary axis of the component, used for rotation (e.g., hinge axis for a control surface)
@@ -97,6 +99,9 @@ class AeroComponent(ABC):
         self.parent = parent
 
     def set_actuator(self, actuator: ActuatorModel):
+        """
+        TODO
+        """
         self.actuator_model = actuator
 
 
@@ -165,7 +170,7 @@ class AeroComponent(ABC):
         alpha: Union[float, ca.MX],
         beta: Union[float, ca.MX],
         speed: Union[float, ca.MX]
-    ) -> tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
+    ) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Returns the forces and moments reflected in the xz plane.
         Switches between NumPy and CasADi based on input type.
@@ -198,7 +203,7 @@ class AeroComponent(ABC):
         :param v_comp: Velocity of the component (np.ndarray or ca.MX)
         :return: Forces and moments (np.ndarray or ca.MX)
         """
-        # --- 1. Set up library-specific functions and variables ---
+        # Set up library-specific functions and variables
         if isinstance(v_comp, ca.MX):
             T = ca.MX(self.static_transform_matrix)
             norm_func = ca.norm_2
@@ -206,7 +211,7 @@ class AeroComponent(ABC):
             T = self.static_transform_matrix
             norm_func = np.linalg.norm
 
-        # --- 2. Perform the calculation using the selected functions ---
+        # Perform the calculation using the selected functions
         R_Comp_Body = T[:3, :3]
         R_Body_Comp = R_Comp_Body.T
 
@@ -283,74 +288,58 @@ class AeroComponent(ABC):
         # The user_matrix allows for efficient transformation of the actor
         self.pv_actor.user_matrix = self.static_transform_matrix
 
-    def get_transform(self, rotation=0) -> np.ndarray:
+    def get_transform(self, rotation: Union[float, ca.MX] = 0) -> Union[np.ndarray, ca.MX]:
         """
         Calculates the 4x4 homogeneous transformation matrix for the component
         :param rotation: The rotation angle [radians] around the `ref_direction`
         :return: The 4x4 transformation matrix
         """
+        is_casadi = isinstance(rotation, (ca.SX, ca.MX))
+
+        if is_casadi:
+            # Use CasADi functions and types
+            eye_func = ca.MX.eye
+            to_type = ca.MX
+        else:
+            # Use NumPy functions and types
+            eye_func = np.eye
+            to_type = lambda x: x
+
+        # --- 2. Calculate Static Transformation Matrices (as NumPy arrays first) ---
         x_vec = np.array([1, 0, 0])
         flip_matrix = np.eye(4)
-        axial_rotation = np.eye(4)
+        axial_rotation_matrix = np.eye(4)
 
-        # If this is not a 'prime' component invert the rotation for symmetric control deflection
+        # If this is not a 'prime' component, apply symmetry rules
         if not self.is_prime:
-            # if the component is reflected around xz plane then flip around y-axis
             if self.symmetry_type == 'xz-plane':
-                rotation = -rotation
+                rotation = -rotation  # Invert rotation for symmetric deflection
                 flip_matrix[1, 1] = -1
-            # check for x-radial symmetry
             elif self.symmetry_type == 'x-radial':
-                axial_rotation[:3, :3] = utils.rotate_z(self.radial_angle)
+                axial_rotation_matrix[:3, :3] = utils.rotate_z(self.radial_angle)
             else:
-                raise ValueError("self.symmetry_type needed to be either 'xz-plane' or 'x-radial'")
+                raise ValueError("self.symmetry_type must be either 'xz-plane' or 'x-radial'")
 
-        # rotate from the standard body X-axis to the component's defined axis
+        # Static rotations based on component geometry (can be calculated with NumPy)
         transform_from_axis_vec = utils.rotation_matrix_from_vectors(x_vec, self.ref_direction)
+        transform_from_ref = utils.translation_matrix(self.xyz_ref)
 
-        # rotate around that new axis (for control deflection)
-        transform_from_control = np.eye(4)
+        # Calculate the Dynamic Control Deflection Matrix
+        # Use the dispatched functions to create a matrix of the correct type
+        transform_from_control = eye_func(4)
         if self.control_pivot is not None:
             transform_from_control = utils.rotation_matrix_from_axis_angle(self.control_pivot, rotation)
 
-        # translate the rotated component to its reference position in the body frame
-        transform_from_ref = utils.translation_matrix(self.xyz_ref)
+        # Combine Transformations
+        final_transform = (
+                to_type(transform_from_ref) @
+                transform_from_control @
+                to_type(transform_from_axis_vec) @
+                to_type(flip_matrix) @
+                to_type(axial_rotation_matrix)
+        )
 
-        # The final matrix is the product of these transformations
-        static_transform_matrix = transform_from_ref @ transform_from_control @ transform_from_axis_vec @ flip_matrix @ axial_rotation
-        return static_transform_matrix
-
-    def casadi_transform(self, deflection: ca.MX) -> ca.MX:
-        x_vec = np.array([1, 0, 0])
-        flip_matrix = np.eye(4)
-        axial_deflection = np.eye(4)
-
-        # If this is not a 'prime' component invert the rotation for symmetric control deflection
-        if not self.is_prime:
-            # if the component is reflected around xz plane then flip around y-axis
-            if self.symmetry_type == 'xz-plane':
-                deflection = -deflection
-                flip_matrix[1, 1] = -1
-            # check for x-radial symmetry
-            elif self.symmetry_type == 'x-radial':
-                axial_deflection[:3, :3] = utils.rotate_z(self.radial_angle)
-            else:
-                raise ValueError("self.symmetry_type needed to be either 'xz-plane' or 'x-radial'")
-
-        # rotate from the standard body X-axis to the component's defined axis
-        transform_from_axis_vec = utils.rotation_matrix_from_vectors(x_vec, self.ref_direction)
-
-        # rotate around that new axis (for control deflection)
-        transform_from_control = ca.MX.eye(4)
-        if self.control_pivot is not None:
-            transform_from_control = utils.rotation_matrix_from_axis_angle_casadi(self.control_pivot, deflection)
-
-        # translate the rotated component to its reference position in the body frame
-        transform_from_ref = utils.translation_matrix(self.xyz_ref)
-
-        # The final matrix is the product of these transformations
-        static_transform_matrix = transform_from_ref @ transform_from_control @ transform_from_axis_vec @ flip_matrix @ axial_deflection
-        return static_transform_matrix
+        return final_transform
 
 
     def update_transform(self, **kwargs):
@@ -427,7 +416,7 @@ class AeroComponent(ABC):
 
         start = pos_inertial + R @ self.xyz_ref
 
-        F_b, _ = self.get_forces_and_moment_lookup(state)
+        F_b, _ = self.get_forces_and_moments(state)
 
         k = .15
         direction = (R @ F_b) * k

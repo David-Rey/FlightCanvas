@@ -291,141 +291,78 @@ def rotation_matrix_from_vectors(
         return T
 
 
-def rotation_matrix_from_axis_angle_casadi(
-        axis: Union[np.ndarray, List[float]],
-        angle_rad: ca.MX
-) -> ca.MX:
+def rotation_matrix_from_axis_angle(
+    axis: Union[np.ndarray, List[float]],
+    angle_rad: Union[float, ca.MX]
+) -> Union[np.ndarray, ca.MX]:
     """
-    Computes a 4x4 transformation matrix that rotates around a given 3D axis
-    by a specified symbolic angle using CasADi.
+    Computes a 4x4 transformation matrix that rotates around a given axis by a
+    specified angle using Rodrigues' Rotation Formula.
 
-    This function implements Rodrigues' Rotation Formula symbolically.
+    This function is type-aware:
+    - If 'angle_rad' is a float, it returns a NumPy array (np.ndarray).
+    - If 'angle_rad' is a CasADi variable, it returns a symbolic CasADi
+      matrix (ca.MX).
 
     Args:
-        axis (Union[np.ndarray, List[float]]): The 3D vector representing the
-                                                 axis of rotation. This is a
-                                                 fixed, numerical value. It
-                                                 will be normalized internally.
-        angle_rad (ca.MX): The symbolic rotation angle in radians (a CasADi variable).
+        axis (Union[np.ndarray, List[float]]): The 3D vector for the axis of
+                                                 rotation. It will be normalized
+                                                 internally.
+        angle_rad (Union[float, ca.MX]): The rotation angle in radians.
 
     Returns:
-        ca.MX: A 4x4 symbolic transformation matrix.
+        Union[np.ndarray, ca.MX]: A 4x4 transformation matrix of the
+                                    appropriate type.
 
     Raises:
         ValueError: If the input axis vector is a zero vector.
     """
-    # --- 1. Handle the numerical axis vector ---
-    axis_np = np.array(axis, dtype=float)
+    # --- 1. Determine library and type conversion function ---
+    is_casadi = isinstance(angle_rad, (ca.SX, ca.MX))
 
-    # Normalize the axis vector
+    if is_casadi:
+        lib = ca
+        to_type = ca.MX  # Function to convert NumPy arrays to ca.MX
+    else:
+        lib = np
+        to_type = lambda x: x  # Identity function (does nothing)
+
+    # --- 2. Process the numerical axis vector (common logic) ---
+    axis_np = np.array(axis, dtype=float)
     norm_axis = np.linalg.norm(axis_np)
-    if norm_axis < 1e-9:  # Use a small tolerance for floating point
+    if norm_axis < 1e-9:
         raise ValueError("The rotation 'axis' vector cannot be a zero vector.")
     unit_axis = axis_np / norm_axis
-
-    # Extract components of the unit axis vector
     kx, ky, kz = unit_axis
 
-    # --- 2. Handle the symbolic angle ---
-    # Pre-calculate sine and cosine of the symbolic angle
-    cos_theta = ca.cos(angle_rad)
-    sin_theta = ca.sin(angle_rad)
-
-    # Calculate (1 - cos_theta) for efficiency
+    # --- 3. Perform symbolic or numerical angle calculations ---
+    cos_theta = lib.cos(angle_rad)
+    sin_theta = lib.sin(angle_rad)
     one_minus_cos_theta = 1 - cos_theta
 
-    # --- 3. Construct constant matrices in CasADi format ---
-    # Construct the skew-symmetric cross-product matrix (K)
-    K = ca.MX(np.array([
-        [0, -kz, ky],
-        [kz, 0, -kx],
-        [-ky, kx, 0]
-    ]))
-
-    # The identity matrix
-    identity_matrix = ca.MX.eye(3)
-
-    # K_squared = K @ K
-    # This can be pre-calculated as it does not depend on the angle.
-    K_squared = K @ K
-
-    # --- 4. Apply Rodrigues' rotation formula symbolically ---
-    # R = I + sin(theta) * K + (1 - cos(theta)) * K^2
-    R = identity_matrix + sin_theta * K + one_minus_cos_theta * K_squared
-
-    # --- 5. Embed the 3x3 rotation into a 4x4 transformation matrix ---
-    # Start with a 4x4 identity matrix
-    T = ca.MX.eye(4)
-
-    # Insert the 3x3 symbolic rotation matrix into the top-left block
-    T[:3, :3] = R
-
-    return T
-
-
-def rotation_matrix_from_axis_angle(
-        axis: Union[np.ndarray, List[float]],
-        angle_rad: float
-) -> np.ndarray:
-    """
-    Computes a 3x3 rotation matrix that rotates around a given 3D axis by a specified angle.
-
-    Uses Rodrigues' Rotation Formula.
-
-    Args:
-        axis (Union[np.ndarray, List[float]]): The 3D vector representing the axis of rotation.
-                                                 It will be normalized internally.
-        angle_rad (float): The rotation angle in radians.
-
-    Returns:
-        np.ndarray: A 3x3 rotation matrix.
-
-    Raises:
-        ValueError: If the input axis vector is a zero vector.
-    """
-    axis = np.array(axis, dtype=float)
-
-    # Normalize the axis vector
-    norm_axis = np.linalg.norm(axis)
-    if norm_axis == 0:
-        raise ValueError("The rotation 'axis' vector cannot be a zero vector.")
-    unit_axis = axis / norm_axis
-
-    # Extract FlightCanvas of the unit axis vector
-    kx, ky, kz = unit_axis
-
-    # Pre-calculate sine and cosine of the angle
-    cos_theta = np.cos(angle_rad)
-    sin_theta = np.sin(angle_rad)
-
-    # Calculate (1 - cos_theta) for efficiency
-    one_minus_cos_theta = 1 - cos_theta
-
-    # Construct the skew-symmetric cross-product matrix (K)
-    K = np.array([
+    # --- 4. Construct matrices with the correct type ---
+    # Create the skew-symmetric matrix K as a NumPy array first...
+    K_np = np.array([
         [0, -kz, ky],
         [kz, 0, -kx],
         [-ky, kx, 0]
     ])
+    # ...then convert it to the target type (ca.MX or np.ndarray).
+    K = to_type(K_np)
 
-    # Apply Rodrigues' rotation formula:
-    # R = I + sin(theta) * K + (1 - cos(theta)) * K^2
-    identity_matrix = np.identity(3)
+    # Create a 3x3 identity matrix of the target type.
+    identity_matrix_3d = to_type(np.eye(3))
 
-    # K_squared = K @ K (equivalent to np.outer(unit_axis, unit_axis) - identity_matrix)
-    K_squared = np.array([
-        [kx * kx - 1, kx * ky, kx * kz],
-        [ky * kx, ky * ky - 1, ky * kz],
-        [kz * kx, kz * ky, kz * kz - 1]
-    ])  # Using pre-calculated FlightCanvas for K^2
+    # K_squared = K @ K. The '@' operator works for both NumPy and CasADi.
+    K_squared = K @ K
 
-    # Rodrigues' formula
-    R = identity_matrix + sin_theta * K + one_minus_cos_theta * K_squared
+    # --- 5. Apply Rodrigues' rotation formula ---
+    # This formula's structure is identical for both libraries.
+    R = identity_matrix_3d + sin_theta * K + one_minus_cos_theta * K_squared
 
-    T = np.eye(4)
-
-    # Insert the 3x3 rotation matrix into the top-left block
-    T[:3, :3] = R
+    # --- 6. Embed the 3x3 rotation into a 4x4 transformation matrix ---
+    T = to_type(np.eye(4))  # Create a 4x4 identity of the target type
+    T[:3, :3] = R           # Set the top-left 3x3 block
 
     return T
 
@@ -508,7 +445,6 @@ def euler_to_quat(a):
     return q
 
 
-#@jit(nopython=True)
 def linear_interpolation(alpha_grid, beta_grid, alpha, beta, data):
     """
     Perform bilinear interpolation for a 2D grid with multiple output dimensions.
@@ -606,62 +542,3 @@ def interp_state(t_arr, x_arr, sim_time):
     state = state0 + alpha * (state1 - state0)
 
     return state
-
-
-def print_states(t_arr: np.ndarray, x_arr: np.ndarray):
-    """
-    :param t_arr: The time array
-    :param x_arr: The state array
-    """
-    for i in range(len(t_arr)):
-        t = t_arr[i]
-        state = x_arr[:, i]
-        pos_I = state[:3]  # Position in the inertial frame
-        vel_I = state[3:6]  # Velocity in the inertial frame
-        quat = state[6:10]  # Orientation as a quaternion
-        omega_B = state[10:13]  # Angular velocity in the body frame
-
-        print(f"  Time {t}")
-        print(f"  Position (Inertial): {pos_I}")
-        print(f"  Velocity (Inertial): {vel_I}")
-        print(f"  Quaternion: {quat}")
-        print(f"  Angular Velocity (Body): {omega_B}")
-        print("\n")
-
-
-'''
-def rotate_mesh_by_matrix(
-    mesh: pv.PolyData,
-    rotation_matrix: np.ndarray
-) -> pv.PolyData:
-    """
-    Rotates a PyVista mesh by a given 3x3 rotation matrix.
-
-    This function creates a new mesh with the transformed points.
-
-    Args:
-        mesh (pv.PolyData): The PyVista PolyData mesh to rotate.
-        rotation_matrix (np.ndarray): A 3x3 NumPy array representing the rotation matrix.
-
-    Returns:
-        pv.PolyData: A new PyVista PolyData mesh with the rotated points.
-
-    Raises:
-        ValueError: If the rotation_matrix is not a 3x3 array.
-    """
-    # Validate the input rotation matrix shape
-    if rotation_matrix.shape != (3, 3):
-        raise ValueError("The 'rotation_matrix' must be a 3x3 NumPy array.")
-
-    # Create a 4x4 homogeneous transformation matrix from the 3x3 rotation matrix.
-    # The top-left 3x3 block is the rotation, and the last column (translation part) is zero.
-    # The bottom-right element is 1.
-    transform_matrix = np.eye(4) # Start with a 4x4 identity matrix
-    transform_matrix[:3, :3] = rotation_matrix # Insert the 3x3 rotation matrix
-
-    # Use PyVista's built-in transform method to apply the transformation.
-    # By setting inplace=False, a new mesh object is returned, preserving the original.
-    rotated_mesh = mesh.transform(transform_matrix, inplace=False)
-
-    return rotated_mesh
-'''
