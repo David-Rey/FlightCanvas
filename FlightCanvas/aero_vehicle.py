@@ -127,6 +127,7 @@ class AeroVehicle:
         Computes the aerodynamic forces and moments on the vehicle. This function
         is type-aware and will use either NumPy or CasADi based on the input type.
         :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
+        :param cmd_deflections: The command deflection angle
         :return: The computed forces and moments
         """
         is_casadi = isinstance(state, (ca.SX, ca.MX))
@@ -146,13 +147,6 @@ class AeroVehicle:
             F_b_comp, M_b_comp = component.get_forces_and_moments(state, true_deflection)
             F_b += F_b_comp
             M_b += M_b_comp
-
-        #for component in self.components:
-        #    F_b_comp, M_b_comp = component.get_forces_and_moments(state)
-        #    F_b += F_b_comp
-        #    M_b += M_b_comp
-
-
 
         return F_b, M_b
 
@@ -182,6 +176,15 @@ class AeroVehicle:
 
                 # Update the component's transformation matrix with the new rotation.
                 component.update_transform(rotation=rotation_command)
+
+    def test_new_buildup(self):
+
+        comp = self.components[1]
+        alpha = np.deg2rad(0)
+        beta = np.deg2rad(0)
+        speed = 100
+        print(comp.buildup_manager._get_forces_and_moments_np(alpha, beta, speed))
+        print(comp.buildup_manager._get_forces_and_moments_np_2(alpha, beta, speed))
 
     def run_sim(
         self,
@@ -332,7 +335,7 @@ class AeroVehicle:
         Crates a buildup manager for each component
         """
         for component in self.components:
-            component.init_buildup_manager(self.vehicle_path)
+            component.init_buildup_manager(self.vehicle_path, component)
 
     def compute_buildup(self):
         """

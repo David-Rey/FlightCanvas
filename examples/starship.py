@@ -184,15 +184,14 @@ if __name__ == '__main__':
         xyz_ref=[20, 0, 0],  # Vehicle's Center of Gravity
         components=all_components,
     )
+    aero_vehicle.set_control_mapping(control_mapping)
 
     aero_vehicle.set_mass(95000)
-
     # MOI calculation
     I_s = (1/2) * 4.5 ** 2
     I_a = ((1/4) * 4.5 ** 2) + ((1/12) * 50 ** 2)
 
     aero_vehicle.set_moi_diag([I_s, I_a, I_a])
-    aero_vehicle.set_control_mapping(control_mapping)
 
     # DEBUG
     animate = 1
@@ -220,20 +219,10 @@ if __name__ == '__main__':
         tf = 20
 
         t_arr, x_arr, u_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf,
-                            casadi=False, open_loop_control=None, gravity=True)
+                            casadi=False, open_loop_control=controls, gravity=True)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
         aero_vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
     else:
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=0.8)
         aero_vehicle.init_debug(size=5.5)
         aero_vehicle.show()
-
-"""
-    front_flap_del = 60
-    back_flap_del = 0
-    
-  Position (Inertial): [1.76196968e+02 1.03554441e-04 2.87400366e+01]
-  Velocity (Inertial): [ 1.73064557e+01  1.99982349e-04 -5.22171862e+01]
-  Quaternion: [ 9.99971588e-01 -5.11811703e-05  7.52580123e-03 -1.00681805e-04]
-  Angular Velocity (Body): [-0.00019237 -0.00608645 -0.00038755]
-"""

@@ -15,23 +15,38 @@ from typing import Union
 
 class BuildupManager:
     def __init__(self, name: str,
-                 vehicle_path: str,
-                 alpha_grid_size: int = 150,
-                 beta_grid_size: int = 100,
-                 operating_velocity: float = 10.0,
-                 include_Fx: bool = True,
-                 include_Fy: bool = True,
-                 include_Fz: bool = True,
-                 include_Mx: bool = True,
-                 include_My: bool = True,
-                 include_Mz: bool = True):
+        vehicle_path: str,
+        aero_component: ['AeroComponent'],
+        alpha_grid_size: int = 250,
+        beta_grid_size: int = 200,
+        operating_velocity: float = 50.0,
+        include_Fx: bool = True,
+        include_Fy: bool = True,
+        include_Fz: bool = True,
+        include_Mx: bool = True,
+        include_My: bool = True,
+        include_Mz: bool = True):
 
         self.name = name
         self.vehicle_path = vehicle_path
+        self.aero_component = aero_component
 
         self.alpha_grid_size = alpha_grid_size
         self.beta_grid_size = beta_grid_size
         self.operating_velocity = operating_velocity
+
+        # Create a meshgrid of alpha and beta values to analyze
+        # Hold grid of an angle of attack and sideslip for buildup
+        self.beta_grid, self.alpha_grid = np.meshgrid(
+            np.linspace(-90, 90, self.beta_grid_size),
+            np.linspace(-180, 180, self.alpha_grid_size)
+        )
+        # Define the operating points for the analysis
+        self.op_point = asb.OperatingPoint(
+            velocity=self.operating_velocity,
+            alpha=self.alpha_grid.flatten(),
+            beta=self.beta_grid.flatten()
+        )
 
         self.include_Fx = include_Fx
         self.include_Fy = include_Fy
@@ -41,10 +56,9 @@ class BuildupManager:
         self.include_Mz = include_Mz
         self.include_arr = np.array([include_Fx, include_Fy, include_Fz, include_Mx, include_My, include_Mz])
 
-        self.alpha_grid = None  # Hold grid of an angle of attack for buildup
-        self.beta_grid = None  # Hold grid of sideslip angles for buildup
         self.asb_data = None  # To hold the aero build data
         self.aero_interpolants = None  # To hold the CasADi interpolant object
+        self.stacked_coeffs_data = None  # To hold the pre-processed NumPy data
 
     def get_forces_and_moments(self, alpha: Union[float, ca.MX], beta: Union[float, ca.MX], speed: Union[float, ca.MX]) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
@@ -56,10 +70,10 @@ class BuildupManager:
         if is_casadi:
             return self._get_forces_and_moments_ca(alpha, beta, speed)
         else:
-            return self._get_forces_and_moments_np(alpha, beta, speed)
+            return self._get_forces_and_moments_np_2(alpha, beta, speed)
 
 
-    def _get_forces_and_moments_np(self, alpha: float, beta: float, speed: float) -> tuple[np.ndarray, np.ndarray]:
+    def _get_forces_and_moments_np(self, alpha: float, beta: float, speed: float) -> Tuple[np.ndarray, np.ndarray]:
         """
         TODO
         """
@@ -81,6 +95,84 @@ class BuildupManager:
         F_b = np.where(self.include_arr[:3], F_b, 0) * scale_factor
         M_b = np.where(self.include_arr[3:], M_b, 0) * scale_factor
         return F_b, M_b
+
+    def _get_forces_and_moments_np_2(self, alpha: float, beta: float, speed: float) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        TODO
+        """
+        if self.stacked_coeffs_data is None:
+            self._pre_process_data()
+
+        # Get the alpha and beta axes from the pre-computed grid (in radians)
+        alpha_lin_rad = np.deg2rad(self.alpha_grid[:, 0])
+        beta_lin_rad = np.deg2rad(self.beta_grid[0, :])
+
+        # Perform a single, fast interpolation on the pre-stacked data
+        interpolated_coeffs = utils.linear_interpolation(
+            alpha_lin_rad, beta_lin_rad, alpha, beta, self.stacked_coeffs_data
+        )
+
+        # Unpack the results.
+        CL, CY, CD, Cl, Cm, Cn = interpolated_coeffs
+
+        density = 1.225
+        dynamic_pressure = 0.5 * density * speed ** 2
+
+        s = self.aero_component.asb_airplane.s_ref
+        c = self.aero_component.asb_airplane.c_ref
+        b = self.aero_component.asb_airplane.b_ref
+        qS = dynamic_pressure * s
+
+        L = -CL * qS  # Lift
+        Y = CY * qS   # Side Force
+        D = -CD * qS  # Drag
+        F_w = np.array([D, Y, L])
+
+        l_b = Cl * qS * b  # rolling moment
+        m_b = Cm * qS * c  # pitching moment
+        n_b = Cn * qS * b  # yawing moment
+        M_b = np.array([l_b, m_b, n_b])
+        F_b = np.array(self._convert_axes(alpha, beta, *F_w))
+
+        return F_b, M_b
+
+    def _pre_process_data(self):
+        """
+        Reshapes and stacks the raw coefficient data into a single 3D NumPy array
+        for efficient interpolation. This should only be called once.
+        """
+        if self.asb_data is None:
+            raise RuntimeError("Aero data not available. Run compute_buildup() or load_buildup() first.")
+
+        # Reshape each coefficient's data into a 2D grid
+        CL_data = np.column_stack(self.asb_data["CL"]).reshape(self.alpha_grid.shape)
+        CY_data = np.column_stack(self.asb_data["CY"]).reshape(self.alpha_grid.shape)
+        CD_data = np.column_stack(self.asb_data["CD"]).reshape(self.alpha_grid.shape)
+        Cl_data = np.column_stack(self.asb_data["Cl"]).reshape(self.alpha_grid.shape)
+        Cm_data = np.column_stack(self.asb_data["Cm"]).reshape(self.alpha_grid.shape)
+        Cn_data = np.column_stack(self.asb_data["Cn"]).reshape(self.alpha_grid.shape)
+
+        # Stack the 2D grids into a single 3D data array and store it
+        self.stacked_coeffs_data = np.stack(
+            [CL_data, CY_data, CD_data, Cl_data, Cm_data, Cn_data],
+            axis=-1
+        )
+
+
+    @staticmethod
+    def _convert_axes(alpha: float, beta: float, x_from: float, y_from: float, z_from: float) -> Tuple[float, float, float]:
+        """
+        Convert axis from wind to body
+        """
+        sa = np.sin(alpha)
+        ca = np.cos(alpha)
+        sb = np.sin(beta)
+        cb = np.cos(beta)
+        x_b = (cb * ca) * x_from + (-sb * ca) * y_from + (-sa) * z_from
+        y_b = sb * x_from + cb * y_from  # Note: z term is 0; not forgotten.
+        z_b = (cb * sa) * x_from + (-sb * sa) * y_from + (ca) * z_from
+        return x_b, y_b, z_b
+
 
     def _create_aero_interpolants(self):
         """
@@ -153,26 +245,16 @@ class BuildupManager:
 
         return F_b, M_b
 
-    def compute_buildup(self, asb_airplane: asb.Airplane):
+    def compute_buildup(self):
         """
         Computes the aerodynamic buildup data for the component over a range
         of alpha and beta angles at a specified velocity
         """
-        # Create a meshgrid of alpha and beta values to analyze
-        self.beta_grid, self.alpha_grid = np.meshgrid(
-            np.linspace(-90, 90, self.beta_grid_size),
-            np.linspace(-180, 180, self.alpha_grid_size)
-        )
-        # Define the operating points for the analysis
-        op_point = asb.OperatingPoint(
-            velocity=self.operating_velocity,
-            alpha=self.alpha_grid.flatten(),
-            beta=self.beta_grid.flatten()
-        )
+
         # Run the AeroBuildup analysis
         self.asb_data = asb.AeroBuildup(
-            airplane=asb_airplane,
-            op_point=op_point
+            airplane=self.aero_component.asb_airplane,
+            op_point=self.op_point
         ).run()
 
     def save_buildup(self):
@@ -226,25 +308,21 @@ class BuildupManager:
         Draws a contour plot of a specified aerodynamic coefficient from the
         buildup data
         """
-        list_names = ["F_b", "M_b"]
-        index_data = [0, 1, 2]
+        list_names = ["CL", "CY", "CD", "Cl", "Cm", "Cn"]
 
         folder_path = os.path.join(self.vehicle_path, 'buildup', self.name)
         path_object = pathlib.Path(folder_path)
         path_object.mkdir(parents=True, exist_ok=True)
 
         # ID is the identifier for the data to plot (e.g., "CL", "CD", "F_b")
-        # The index if the data is a vector (e.g., 0 for Fx in F_b)
         for ID in list_names:
-            # Inner loop for indices
-            for index in index_data:
-                # Data from the buildup
-                self.draw_buildup_figs(ID, index, folder_path)
+             # Data from the buildup
+            self.draw_buildup_figs(ID, folder_path)
 
-    def draw_buildup_figs(self, ID: str, index: int, folder_path: str):
-        data = self.asb_data[ID][index]
-        title = f"`{self.name}` {ID} [{index}]"
-        file_name = f"{self.name}_{ID}_{index}.png"
+    def draw_buildup_figs(self, ID: str, folder_path: str):
+        data = self.asb_data[ID]
+        title = f"`{self.name}` {ID}"
+        file_name = f"{self.name}_{ID}.png"
         full_path = os.path.join(folder_path, file_name)
 
         # Create the contour plot

@@ -240,13 +240,13 @@ class AeroComponent(ABC):
 
         return F_b, M_b
 
-    def init_buildup_manager(self, vehicle_path):
+    def init_buildup_manager(self, vehicle_path: str, component: 'AeroComponent'):
         """
         Adds buildup manager that holds aerodynamic forces and moments to object
         :param vehicle_path: The path to the buildup manager file
         """
         if self.is_prime:
-            self.buildup_manager = BuildupManager(self.name, vehicle_path)
+            self.buildup_manager = BuildupManager(self.name, vehicle_path, component)
 
     def compute_buildup(self):
         """
@@ -254,7 +254,7 @@ class AeroComponent(ABC):
         of alpha and beta angles at a specified velocity
         """
         if self.is_prime:
-            self.buildup_manager.compute_buildup(self.asb_airplane)
+            self.buildup_manager.compute_buildup()
 
     def save_buildup(self):
         """

@@ -86,9 +86,11 @@ if __name__ == '__main__':
     #aero_vehicle.save_buildup_fig()
     aero_vehicle.load_buildup()
 
+    #aero_vehicle.test_new_buildup()
+
     if animate:
         pos_0 = np.array([0, 0, 950])  # Initial position
-        vel_0 = np.array([100, 0, 0.01])  # Initial velocity
+        vel_0 = np.array([90, 0, 0.01])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
         tf = 40
@@ -102,18 +104,3 @@ if __name__ == '__main__':
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=0.8)
         aero_vehicle.init_debug()
         aero_vehicle.show()
-
-
-    '''
-    main_wing_xsecs = [
-        asb.WingXSec(xyz_le=[-.1, 0, 0], chord=0.18, twist=2, airfoil=wing_airfoil),
-        asb.WingXSec(xyz_le=[-0.09, 0.5, 0], chord=0.16, twist=0, airfoil=wing_airfoil),
-        asb.WingXSec(xyz_le=[-0.02, 1, 0.1], chord=0.08, twist=-2, airfoil=wing_airfoil),
-    ]
-    main_wings = create_planar_wing_pair(
-        name="Main Wing",
-        xsecs=main_wing_xsecs,
-        translation=[0.18, 0.05, 0],
-        ref_direction=[1, 0, 0]
-    )
-    '''
