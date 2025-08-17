@@ -94,9 +94,10 @@ if __name__ == '__main__':
         tf = 40
 
         #t_arr, x_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, print_debug=False)
-        t_arr, x_arr = aero_vehicle.run_sim_casadi(pos_0, vel_0, quat_0, omega_0, tf)
+        t_arr, x_arr, u_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf,
+                                                   casadi=True)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
-        aero_vehicle.animate(t_arr, x_arr, cam_distance=4)
+        aero_vehicle.animate(t_arr, x_arr, u_arr, cam_distance=4)
     else:
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=0.8)
         aero_vehicle.init_debug()

@@ -542,6 +542,9 @@ def interp_state(t_arr: np.ndarray, x_arr: np.ndarray, u_arr: np.ndarray, sim_ti
     state = state0 + alpha * (state1 - state0)
 
     # Interpolate control
+    if u_arr.size == 0:
+        return state, None
+
     control0 = u_arr[:, index]
     control1 = u_arr[:, index + 1]
     control = control0 + alpha * (control1 - control0)

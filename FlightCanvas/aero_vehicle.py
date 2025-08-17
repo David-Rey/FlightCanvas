@@ -244,8 +244,8 @@ class AeroVehicle:
 
             cmd_deflections = np.zeros(len(self.components))
             if open_loop_control is not None:
-                mu = open_loop_control.get_u(t)
-                cmd_deflections = self.allocation_matrix @ mu
+                control = open_loop_control.get_u(t)
+                cmd_deflections = self.allocation_matrix @ control
 
             F_B, M_B = self.compute_forces_and_moments(state, cmd_deflections)
             C_I_B = utils.dir_cosine_np(quat).T
@@ -268,7 +268,9 @@ class AeroVehicle:
         solution = solve_ivp(dynamics_6dof, t_span, state_0, t_eval=t_eval, rtol=1e-5, atol=1e-5)
 
         # Get control
-        u_values = np.array([open_loop_control.get_u(t) for t in solution['t']]).T
+        u_values = np.empty(0)
+        if open_loop_control is not None:
+            u_values = np.array([open_loop_control.get_u(t) for t in solution['t']]).T
 
         return solution['t'], solution['y'], u_values
 
@@ -285,7 +287,7 @@ class AeroVehicle:
         """
         Runs a 6DoF simulation using a fixed-step CasADi RK4 integrator.
         """
-        g = np.array([0, 0, -9.81]) if gravity else np.array([0, 0, 0])
+        g = ca.MX([0, 0, -9.81]) if gravity else ca.MX([0, 0, 0])
 
         # Define Symbolic State and Dynamics
         pos_I = ca.MX.sym('pos_I', 3)
@@ -293,8 +295,7 @@ class AeroVehicle:
         quat = ca.MX.sym('quat', 4)
         omega_B = ca.MX.sym('omega_B', 3)
         state = ca.vertcat(pos_I, vel_I, quat, omega_B)
-        control = np.zeros(4)
-        cmd_deflections = self.allocation_matrix @ control
+        cmd_deflections = np.zeros(len(self.components))
 
         F_B, M_B = self.compute_forces_and_moments(state, cmd_deflections)
         C_I_B = utils.dir_cosine_ca(quat).T
@@ -315,7 +316,6 @@ class AeroVehicle:
         x0 = np.concatenate([pos_0, vel_0, quat_0, omega_0])
         num_steps = int(tf / dt)
         x_history = [x0]
-        u_history = [control]
         current_x = x0
 
         for _ in range(num_steps):
@@ -323,10 +323,9 @@ class AeroVehicle:
             current_x = res['xf'].full().flatten()
             current_x[6:10] /= np.linalg.norm(current_x[6:10])  # Normalize quaternion
             x_history.append(current_x)
-            u_history.append(control)
 
         t_eval = np.linspace(0, tf, num_steps + 1)
-        return t_eval, np.array(x_history).T, np.array(u_history).T
+        return t_eval, np.array(x_history).T, np.empty(0)
 
     def init_buildup_manager(self):
         """
@@ -459,7 +458,9 @@ class AeroVehicle:
             state, control = utils.interp_state(t_arr, x_arr, u_arr, sim_time)
             state[0] = -state[0]
 
-            cmd_deflection = self.allocation_matrix @ control
+            cmd_deflection = np.zeros(len(self.components))
+            if control is not None:
+                cmd_deflection = self.allocation_matrix @ control
 
             # Update actors with interpolated state
             self.update_actors(state, cmd_deflection)
