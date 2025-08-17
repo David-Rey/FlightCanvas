@@ -107,12 +107,14 @@ class AeroComponent(ABC):
 
     def get_forces_and_moments(
         self,
-        state: Union[np.ndarray, ca.MX]) \
+        state: Union[np.ndarray, ca.MX],
+        true_deflection: Union[float, ca.MX]) \
     -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Calculates the aerodynamic forces and moments on the component.
         This function is type-aware and will use either NumPy or CasADi based on the input type.
         :param state: The state vector (position, velocity, quaternion, angular velocity) in either CasADi or NumPy.
+        :param true_deflection: TODO
         """
         is_casadi = isinstance(state, (ca.SX, ca.MX))
 
@@ -139,7 +141,8 @@ class AeroComponent(ABC):
         v_B = C_B_I @ vel
 
         # get rotation matrix from transform matrix
-        T = to_type(self.static_transform_matrix)
+        #T = to_type(self.static_transform_matrix)
+        T = self.get_transform(true_deflection)
         R = T[:3, :3]
 
         # get reference point to either numpy or casadi
@@ -377,11 +380,13 @@ class AeroComponent(ABC):
 
         self.dynamic_transform_matrix = static_to_dynamic_transform @ self.static_transform_matrix
 
-    def update_actor(self, state: np.ndarray):
+    def update_actor(self, state: np.ndarray, true_deflection: float):
         """
         Updates the PyVista actor's transformation matrix in the 3D scene
         :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
+        :param true_deflection: The true deflection angle of the aero component
         """
+        self.static_transform_matrix = self.get_transform(true_deflection)
         self.update_dynamic_transform(state)
         self.pv_actor.user_matrix = self.dynamic_transform_matrix
 
@@ -411,10 +416,11 @@ class AeroComponent(ABC):
         self.ref_direction_actor = self.draw_ref_direction(pl, size=size)
         self.control_pivot_actor = self.draw_control_pivot(pl, size=size)
 
-    def update_debug(self, state: np.ndarray):
+    def update_debug(self, state: np.ndarray, true_deflection: float):
         """
         Updates debug visuals for this component in a PyVista plotter
         :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
+        :param true_deflection: The true deflection angle of the aero component
         """
         pos_inertial = state[:3]
         quat = state[6:10]
@@ -427,7 +433,7 @@ class AeroComponent(ABC):
 
         start = pos_inertial + R @ self.xyz_ref
 
-        F_b, _ = self.get_forces_and_moments(state)
+        F_b, _ = self.get_forces_and_moments(state, true_deflection)
 
         k = .15
         direction = (R @ F_b) * k

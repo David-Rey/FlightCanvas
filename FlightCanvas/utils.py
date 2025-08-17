@@ -1,7 +1,7 @@
 import aerosandbox.geometry.mesh_utilities as mesh_utils
 import pyvista as pv
 import numpy as np
-from typing import List, Union
+from typing import List, Union, Tuple
 import casadi as ca
 
 
@@ -528,7 +528,7 @@ def rotate_z(rotate_angle_deg):
     return R_Comp_Body
 
 
-def interp_state(t_arr, x_arr, sim_time):
+def interp_state(t_arr: np.ndarray, x_arr: np.ndarray, u_arr: np.ndarray, sim_time: float) -> Tuple[np.ndarray, np.ndarray]:
     index = np.searchsorted(t_arr, sim_time) - 1
     index = np.clip(index, 0, x_arr.shape[1] - 2)
 
@@ -541,4 +541,9 @@ def interp_state(t_arr, x_arr, sim_time):
     state1 = x_arr[:, index + 1]
     state = state0 + alpha * (state1 - state0)
 
-    return state
+    # Interpolate control
+    control0 = u_arr[:, index]
+    control1 = u_arr[:, index + 1]
+    control = control0 + alpha * (control1 - control0)
+
+    return state, control

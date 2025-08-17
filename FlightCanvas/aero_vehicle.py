@@ -9,6 +9,7 @@ from scipy.integrate import solve_ivp
 import casadi as ca
 
 from FlightCanvas.components.aero_component import AeroComponent
+from FlightCanvas.open_loop_control import OpenLoopControl
 
 
 class AeroVehicle:
@@ -75,6 +76,12 @@ class AeroVehicle:
         """
         self.moi = moi_factor * self.mass * np.eye(3)
 
+    def set_moi_diag(self, moi_diag: Union[np.ndarray, List[float]]):
+        """
+        Sets the mass moment of inertia
+        """
+        self.moi = np.diag(np.array(moi_diag)) * self.mass
+
     def set_control_mapping(self, control_mapping: dict):
         """
         Sets the control mapping for the vehicle
@@ -111,7 +118,11 @@ class AeroVehicle:
         # Set up casadi control variables
         self.ca_u = ca.MX.sym('control', num_commands)
 
-    def compute_forces_and_moments(self, state: Union[np.ndarray, ca.MX]) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
+    def compute_forces_and_moments(
+        self,
+        state: Union[np.ndarray, ca.MX],
+        cmd_deflections: Union[np.ndarray, ca.MX]) \
+    -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Computes the aerodynamic forces and moments on the vehicle. This function
         is type-aware and will use either NumPy or CasADi based on the input type.
@@ -128,10 +139,20 @@ class AeroVehicle:
             M_b = np.zeros(3)
 
         # For each component, look up the forces and moments based on its local flow conditions
-        for component in self.components:
-            F_b_comp, M_b_comp = component.get_forces_and_moments(state)
+        for i in range(len(self.components)):
+            component = self.components[i]
+            cmd_deflection = cmd_deflections[i]
+            true_deflection = cmd_deflection  # TODO
+            F_b_comp, M_b_comp = component.get_forces_and_moments(state, true_deflection)
             F_b += F_b_comp
             M_b += M_b_comp
+
+        #for component in self.components:
+        #    F_b_comp, M_b_comp = component.get_forces_and_moments(state)
+        #    F_b += F_b_comp
+        #    M_b += M_b_comp
+
+
 
         return F_b, M_b
 
@@ -163,18 +184,18 @@ class AeroVehicle:
                 component.update_transform(rotation=rotation_command)
 
     def run_sim(
-            self,
-            pos_0: np.ndarray,
-            vel_0: np.ndarray,
-            quat_0: np.ndarray,
-            omega_0: np.ndarray,
-            tf: float,
-            dt: float = 0.02,
-            gravity: bool = True,
-            casadi: bool = True,
-            print_debug: bool = False,
-            open_loop_control: Optional[Any] = None
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        self,
+        pos_0: np.ndarray,
+        vel_0: np.ndarray,
+        quat_0: np.ndarray,
+        omega_0: np.ndarray,
+        tf: float,
+        dt: float = 0.02,
+        gravity: bool = True,
+        casadi: bool = True,
+        print_debug: bool = False,
+        open_loop_control: OpenLoopControl = None
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Runs simulation of 6 Degree of Freedom model with no control
         :param pos_0: The initial position [x, y, z] (m)
@@ -206,8 +227,8 @@ class AeroVehicle:
         dt: float,
         gravity: bool,
         print_debug: bool,
-        open_loop_control: Optional[Any]
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        open_loop_control: OpenLoopControl
+    ) -> Tuple[np.ndarray, np.ndarray,  np.ndarray]:
         """
         Runs a 6DoF simulation using SciPy's adaptive-step ODE solver.
         """
@@ -221,13 +242,12 @@ class AeroVehicle:
             if print_debug:
                 print(f"Time: {t:.2f} s")
 
+            cmd_deflections = np.zeros(len(self.components))
             if open_loop_control is not None:
                 mu = open_loop_control.get_u(t)
-                # Placeholder for control logic...
-                # cmd_deflections = self.allocation_matrix @ mu
-                # self.update_control_surfaces(cmd_deflections)
+                cmd_deflections = self.allocation_matrix @ mu
 
-            F_B, M_B = self.compute_forces_and_moments(state)
+            F_B, M_B = self.compute_forces_and_moments(state, cmd_deflections)
             C_I_B = utils.dir_cosine_np(quat).T
             F_I = (C_I_B @ F_B) + self.mass * g
             v_dot = F_I / self.mass
@@ -246,7 +266,11 @@ class AeroVehicle:
         t_eval = np.linspace(t_span[0], t_span[1], num_points)
 
         solution = solve_ivp(dynamics_6dof, t_span, state_0, t_eval=t_eval, rtol=1e-5, atol=1e-5)
-        return solution['t'], solution['y']
+
+        # Get control
+        u_values = np.array([open_loop_control.get_u(t) for t in solution['t']]).T
+
+        return solution['t'], solution['y'], u_values
 
     def _run_sim_casadi(
         self,
@@ -257,7 +281,7 @@ class AeroVehicle:
         tf: float,
         dt: float,
         gravity: bool
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Runs a 6DoF simulation using a fixed-step CasADi RK4 integrator.
         """
@@ -269,8 +293,10 @@ class AeroVehicle:
         quat = ca.MX.sym('quat', 4)
         omega_B = ca.MX.sym('omega_B', 3)
         state = ca.vertcat(pos_I, vel_I, quat, omega_B)
+        control = np.zeros(4)
+        cmd_deflections = self.allocation_matrix @ control
 
-        F_B, M_B = self.compute_forces_and_moments(state)
+        F_B, M_B = self.compute_forces_and_moments(state, cmd_deflections)
         C_I_B = utils.dir_cosine_ca(quat).T
         F_I = (C_I_B @ F_B) + self.mass * g
         v_dot = F_I / self.mass
@@ -289,6 +315,7 @@ class AeroVehicle:
         x0 = np.concatenate([pos_0, vel_0, quat_0, omega_0])
         num_steps = int(tf / dt)
         x_history = [x0]
+        u_history = [control]
         current_x = x0
 
         for _ in range(num_steps):
@@ -296,9 +323,10 @@ class AeroVehicle:
             current_x = res['xf'].full().flatten()
             current_x[6:10] /= np.linalg.norm(current_x[6:10])  # Normalize quaternion
             x_history.append(current_x)
+            u_history.append(control)
 
         t_eval = np.linspace(0, tf, num_steps + 1)
-        return t_eval, np.array(x_history).T
+        return t_eval, np.array(x_history).T, np.array(u_history).T
 
     def init_buildup_manager(self):
         """
@@ -356,11 +384,15 @@ class AeroVehicle:
 
         [comp.init_actor(self.pl, **kwargs) for comp in self.components]
 
-    def update_actors(self, state: np.ndarray):
+    def update_actors(self, state: np.ndarray, true_deflection: np.ndarray):
         """
         Updates PyVista actors for all FlightCanvas
+        :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
+        :param true_deflection: The true deflection angle of the aero component
         """
-        [comp.update_actor(state) for comp in self.components]
+        for i in range(len(self.components)):
+            comp = self.components[i]
+            comp.update_actor(state, float(true_deflection[i]))
 
     def init_debug(self, size=1, label=True):
         """
@@ -379,18 +411,22 @@ class AeroVehicle:
         for component in self.components:
             component.init_debug(self.pl, self.xyz_ref, size=size, label=label)
 
-    def update_debug(self, state: np.ndarray):
+    def update_debug(self, state: np.ndarray, true_deflection: np.ndarray):
         """
         Updates debug visuals for the vehicle and its FlightCanvas given the current state
         :param state: The current state of the vehicle
+        :param true_deflection: The true deflection angle of the aero component
         """
-        [comp.update_debug(state) for comp in self.components]
+        for i in range(len(self.components)):
+            comp = self.components[i]
+            comp.update_debug(state, float(true_deflection[i]))
 
-    def animate(self, t_arr: np.ndarray, x_arr: np.ndarray, debug=False, cam_distance=5):
+    def animate(self, t_arr: np.ndarray, x_arr: np.ndarray, u_arr: np.ndarray, debug=False, cam_distance=5):
         """
         Animates the aerodynamic visuals for all FlightCanvas
         :param t_arr: The time array
         :param x_arr: The state array
+        :param u_arr: The control array
         :param debug: If true, draws debug visuals
         :param cam_distance: The distance from the camera to center of mass
         """
@@ -420,13 +456,15 @@ class AeroVehicle:
 
         for i in range(num_frames):
             sim_time = dt * i
-            state = utils.interp_state(t_arr, x_arr, sim_time)
+            state, control = utils.interp_state(t_arr, x_arr, u_arr, sim_time)
             state[0] = -state[0]
 
+            cmd_deflection = self.allocation_matrix @ control
+
             # Update actors with interpolated state
-            self.update_actors(state)
+            self.update_actors(state, cmd_deflection)
             if debug:
-                self.update_debug(state)
+                self.update_debug(state, cmd_deflection)
 
             # extract rotation matrix from quaterion
             quat = state[6:10]
