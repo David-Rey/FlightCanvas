@@ -108,15 +108,14 @@ class BuildupManager:
         Y = CY * qS   # Side Force
         D = -CD * qS  # Drag
         F_w = np.array([D, Y, L])
+        F_b = self._convert_axes_np(alpha, beta, F_w)
 
         l_b = Cl * qS * b  # rolling moment
         m_b = Cm * qS * c  # pitching moment
         n_b = Cn * qS * b  # yawing moment
-        M_b = np.array([l_b, m_b, n_b])
-        F_b = self._convert_axes_np(alpha, beta, F_w)
+        M_b_static = np.array([l_b, m_b, n_b])
 
-        M_b_d = np.zeros(3)
-
+        M_b_damping = np.zeros(3)
         # Damping Moment Calculation ---
         if self.asb_data_damping is not None and self.compute_damping:
             if self.stacked_coeffs_data_damping is None:
@@ -137,11 +136,11 @@ class BuildupManager:
             r_hat = r * b * 0.5 * V_inv
 
             # Add damping moments
-            M_b_d[0] = Clp * qS * b * p_hat
-            M_b_d[1] = Cmq * qS * c * q_hat
-            M_b_d[2] = Cnr * qS * b * r_hat
+            M_b_damping[0] = Clp * qS * b * p_hat
+            M_b_damping[1] = Cmq * qS * c * q_hat
+            M_b_damping[2] = Cnr * qS * b * r_hat
 
-        M_b_total = M_b + M_b_d
+        M_b_total = M_b_static + M_b_damping
         return F_b, M_b_total
 
     def _pre_process_static_data(self):
@@ -174,48 +173,7 @@ class BuildupManager:
             self.asb_data_damping["Cnr"]
         ])
 
-    @staticmethod
-    def _convert_axes_np(alpha: float, beta: float, F_w: np.ndarray) -> np.ndarray:
-        """
-        Convert axis from wind to body
-        """
-        ca = np.cos(alpha)
-        sa = np.sin(alpha)
-        cb = np.cos(beta)
-        sb = np.sin(beta)
-
-        # Rotation matrix from wind to body axes
-        R_b_w = np.array([
-            [ca * cb, -ca * sb, -sa],
-            [sb, cb, 0],
-            [sa * cb, -sa * sb, ca]
-        ])
-
-        F_b = R_b_w @ F_w
-        return F_b
-
-    @staticmethod
-    def _convert_axes_ca(alpha, beta, F_w):
-        """
-        Convert axis from wind to body
-        """
-        ca_ = ca.cos(alpha)
-        sa = ca.sin(alpha)
-        cb = ca.cos(beta)
-        sb = ca.sin(beta)
-
-        # Rotation matrix from wind to body axes
-        R_b_w = ca.vertcat(
-            ca.horzcat(ca_ * cb, -ca_ * sb, -sa),
-            ca.horzcat(sb, cb, 0),
-            ca.horzcat(sa * cb, -sa * sb, ca_)
-        )
-
-        F_b = R_b_w @ F_w
-        return F_b
-
-
-    def _create_aero_interpolants(self):
+    def _create_static_interpolants(self):
         """
         Private helper method to create and cache the CasADi interpolant objects.
         This is a one-time setup operation.
@@ -235,26 +193,26 @@ class BuildupManager:
 
         # Create a single interpolant for all 6 coefficients
         sanitized_name = self.name.replace(" ", "_")
-        self.static_interpolant = ca.interpolant(
+        self.static_interpolants = ca.interpolant(
             f'{sanitized_name}_CoeffsLookup',
             'linear',
             grid_axes,
             coeffs_data_flat
         )
 
-    def _get_forces_and_moments_ca(self, alpha: ca.MX, beta: ca.MX, speed: ca.MX) -> Tuple[ca.MX, ca.MX]:
+    def _get_forces_and_moments_ca(self, alpha: ca.MX, beta: ca.MX, speed: ca.MX, p: ca.MX, q: ca.MX, r: ca.MX) -> Tuple[ca.MX, ca.MX]:
         """
         Computes aerodynamic forces and moments using pre-computed CasADi interpolants.
         """
         if self.asb_data_static is None:
             raise RuntimeError("Aero data not available. Run compute_buildup() or load_buildup() first.")
 
-        if self.static_interpolant is None:
-            self._create_aero_interpolants()
+        if self.static_interpolants is None:
+            self._create_static_interpolants()
 
         # Perform Symbolic Lookup
         interp_input = ca.vcat([alpha, beta])
-        interpolated_coeffs_flat = self.static_interpolant(interp_input)
+        interpolated_coeffs_flat = self.static_interpolants(interp_input)
         interpolated_coeffs = ca.reshape(interpolated_coeffs_flat, 6, 1)
 
         # Unpack the results
@@ -273,15 +231,56 @@ class BuildupManager:
         Y = CY * qS  # Side Force
         D = CD * qS  # Drag
         F_w = ca.vertcat(-D, Y, -L)
+        F_b = self._convert_axes_ca(alpha, beta, F_w)
 
         l_b = Cl * qS * b  # rolling moment
         m_b = Cm * qS * c  # pitching moment
         n_b = Cn * qS * b  # yawing moment
-        M_b = ca.vertcat(l_b, m_b, n_b)
-        F_b = self._convert_axes_ca(alpha, beta, F_w)
+        M_b_static = ca.vertcat(l_b, m_b, n_b)
 
-        return F_b, M_b
+        M_b_damping = ca.MX.zeros(3)
+        if self.asb_data_damping is not None and self.compute_damping:
+            if self.damping_interpolant is None:
+                self._create_damping_interpolant()
 
+            damping_coeffs_flat = self.damping_interpolant(alpha)
+            damping_coeffs = ca.reshape(damping_coeffs_flat, 3, 1)
+            Clp, Cmq, Cnr = [damping_coeffs[i] for i in range(3)]
+
+            V_inv = 1 / (speed + 1e-9)
+            p_hat = p * b * 0.5 * V_inv
+            q_hat = q * c * 0.5 * V_inv
+            r_hat = r * b * 0.5 * V_inv
+
+            M_b_damping[0] = Clp * qS * b * p_hat
+            M_b_damping[1] = Cmq * qS * c * q_hat
+            M_b_damping[2] = Cnr * qS * b * r_hat
+
+        M_b_total = M_b_static + M_b_damping
+        return F_b, M_b_total
+
+
+
+    def _create_damping_interpolant(self):
+        """
+        TODO double check
+        """
+        if self.stacked_coeffs_data_damping is None:
+            self._pre_process_damping_data()
+
+        alpha_sweep_rad = np.deg2rad(self.alpha_sweep_1D)
+        sanitized_name = self.name.replace(" ", "_")
+
+        # Convert NumPy arrays to the list format that CasADi expects
+        grid_list = [alpha_sweep_rad.tolist()]
+        data_list = self.stacked_coeffs_data_damping.T.ravel().tolist()
+
+        self.damping_interpolant = ca.interpolant(
+            f'{sanitized_name}_DampingLookup',
+            'linear',
+            grid_list,
+            data_list
+        )
     def compute_buildup(self):
         """
         Computes the aerodynamic buildup data for the component over a range
@@ -392,6 +391,46 @@ class BuildupManager:
         )
 
         plt.close()
+
+    @staticmethod
+    def _convert_axes_np(alpha: float, beta: float, F_w: np.ndarray) -> np.ndarray:
+        """
+        Convert axis from wind to body
+        """
+        ca = np.cos(alpha)
+        sa = np.sin(alpha)
+        cb = np.cos(beta)
+        sb = np.sin(beta)
+
+        # Rotation matrix from wind to body axes
+        R_b_w = np.array([
+            [ca * cb, -ca * sb, -sa],
+            [sb, cb, 0],
+            [sa * cb, -sa * sb, ca]
+        ])
+
+        F_b = R_b_w @ F_w
+        return F_b
+
+    @staticmethod
+    def _convert_axes_ca(alpha, beta, F_w):
+        """
+        Convert axis from wind to body
+        """
+        ca_ = ca.cos(alpha)
+        sa = ca.sin(alpha)
+        cb = ca.cos(beta)
+        sb = ca.sin(beta)
+
+        # Rotation matrix from wind to body axes
+        R_b_w = ca.vertcat(
+            ca.horzcat(ca_ * cb, -ca_ * sb, -sa),
+            ca.horzcat(sb, cb, 0),
+            ca.horzcat(sa * cb, -sa * sb, ca_)
+        )
+
+        F_b = R_b_w @ F_w
+        return F_b
 
     def compute_symbolic(self):
         pass

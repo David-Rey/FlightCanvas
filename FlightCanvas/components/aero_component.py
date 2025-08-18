@@ -161,9 +161,14 @@ class AeroComponent(ABC):
         # compute angle of attack and sideslip
         alpha, beta = get_rel_alpha_beta(v_comp)
 
+        # Extract angular rates (works in both numpy and casadi)
+        p = local_angular_rate[0]
+        q = local_angular_rate[1]
+        r = local_angular_rate[2]
+
         # if component is main then use buildup manager, else use symmetric component buildup manager
         if self.is_prime:
-            F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, speed, *local_angular_rate)
+            F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, speed, p, q, r)
         else:
             # if the component is reflected around xz plane then use get_forces_and_moment_xz_plane function
             if self.symmetry_type == 'xz-plane':
