@@ -118,10 +118,6 @@ class AeroComponent(ABC):
         """
         is_casadi = isinstance(state, (ca.SX, ca.MX))
 
-        vel = state[3:6]
-        quat = state[6:10]
-        angular_rate = state[10:]
-
         # Select the correct library functions and types based on the input
         if is_casadi:
             lib = ca
@@ -134,31 +130,36 @@ class AeroComponent(ABC):
             to_type = lambda x: x
             norm = np.linalg.norm
 
+        # Extract state information
+        vel = state[3:6]
+        quat = state[6:10]
+        angular_rate = state[10:]
+
         # Compute direction cosine function
         C_B_I = dir_cosine_func(quat)
 
-        # get velocity of the body
+        # Get velocity of the body
         v_B = C_B_I @ vel
 
-        # get transform matrix
+        # Get transform matrix
         T = to_type(self.get_transform(true_deflection))
 
-        # get rotation matrix from body frame to component frame
+        # Get rotation matrix from body frame to component frame
         R = T[:3, :3]
 
-        # compute distance from component to vehicle center of mass in the body frame
+        # Compute distance from component to vehicle center of mass in the body frame
         lever_arm = to_type(self.parent.xyz_ref - self.xyz_ref)
 
-        # get local velocity of the component
+        # Get local velocity of the component
         v_comp = R @ (v_B + lib.cross(angular_rate, lever_arm))
 
-        # get local angular rate
+        # Get local angular rate
         local_angular_rate = R @ angular_rate
 
-        # get airspeed of component
+        # Get airspeed of component
         speed = norm(v_comp)
 
-        # compute angle of attack and sideslip
+        # Compute angle of attack and sideslip
         alpha, beta = get_rel_alpha_beta(v_comp)
 
         # Extract angular rates (works in both numpy and casadi)
@@ -179,7 +180,7 @@ class AeroComponent(ABC):
             else:
                 raise ValueError("self.symmetry_type needed to be either 'xz-plane' or 'x-radial'")
 
-        # compute moment arm
+        # Compute moment arm
         M_b_cross = lib.cross(lever_arm, F_b)
 
         # Sum aero-moments and moments due to forces
