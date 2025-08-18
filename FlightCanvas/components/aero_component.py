@@ -251,23 +251,28 @@ class AeroComponent(ABC):
         # Set up library-specific functions and variables
         if isinstance(v_comp, ca.MX):
             T = ca.MX(self.static_transform_matrix)
-            norm_func = ca.norm_2
+            norm = ca.norm_2
         else:
             T = self.static_transform_matrix
-            norm_func = np.linalg.norm
+            norm = np.linalg.norm
 
         # Perform the calculation using the selected functions
         R_Comp_Body = T[:3, :3]
         R_Body_Comp = R_Comp_Body.T
 
-        angular_rate_local = R_Comp_Body @ angular_rate
+        # Get local angular rate
+        local_angular_rate = R_Comp_Body @ angular_rate
 
+        # Get airspeed of component
+        speed = norm(v_comp)
+
+        # Compute angle of attack and sideslip
         alpha, beta = get_rel_alpha_beta(v_comp)
-        speed = norm_func(v_comp)
 
-        F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, beta, speed, *angular_rate_local)
+        # Compute local forces and moments in the component frame
+        F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, beta, speed, *local_angular_rate)
 
-        # Matrix multiplication works for both NumPy and CasADi
+        # Rotate forces and moments from component frame to body frame
         F_b = R_Body_Comp @ F_b_local
         M_b = R_Body_Comp @ M_b_local
 
