@@ -9,7 +9,7 @@ from FlightCanvas.aero_vehicle import AeroVehicle
 from FlightCanvas.components.aero_wing import create_planar_wing_pair, AeroWing
 
 from FlightCanvas import utils
-
+from FlightCanvas.open_loop_control import OpenLoopControl
 
 def _smooth_path(points, smoothing_factor=0, n_points=500):
     tck, u = splprep(points.T, s=smoothing_factor)
@@ -71,7 +71,7 @@ def model_body(height: float, diameter: float) -> AeroFuselage:
     end_cord = np.array([[height, nosecone_coords[-1, 1]], [height, 0]])
     nosecone_coords = np.vstack((nosecone_coords, end_cord))
 
-    k = 20  # remove me (for testing)
+    k = 19.5  # remove me (for testing)
 
     fuselage_xsecs = [asb.FuselageXSec(
         xyz_c=[x - k, 0, 0],  # Place the sections based on the nosecone coordinates
@@ -124,7 +124,7 @@ if __name__ == '__main__':
         translation=[5, 2.9, 0],  # Apply translation to the whole pair
         ref_direction=[1, 0.18, 0],
         control_pivot=[1, 0.18, 0],
-        actuator_model=FirstOrderDeflection(time_constant=0.1)
+        actuator_model=FirstOrderDeflection(time_constant=1)
     )
 
     back_flap_length = 15
@@ -153,7 +153,8 @@ if __name__ == '__main__':
         xsecs=back_flap_xsecs,
         translation=[35, 4.5, 0],  # Apply translation to the whole pair
         ref_direction=[1, 0, 0],
-        control_pivot=[1, 0, 0]
+        control_pivot=[1, 0, 0],
+        actuator_model=FirstOrderDeflection(time_constant=1)
     )
 
     all_components = [
@@ -180,47 +181,53 @@ if __name__ == '__main__':
 
     aero_vehicle = AeroVehicle(
         name="Starship",
-        xyz_ref=[20, 0, 0],  # Vehicle's Center of Gravity
+        xyz_ref=[19.5, 0, 0],  # Vehicle's Center of Gravity
         components=all_components,
     )
-    aero_vehicle.set_mass(95000)
-    aero_vehicle.set_moi_factor(70)
     aero_vehicle.set_control_mapping(control_mapping)
 
+    aero_vehicle.set_mass(95000)
+    # MOI calculation
+    I_s = (1/2) * 4.5 ** 2
+    I_a = ((1/4) * 4.5 ** 2) + ((1/12) * 50 ** 2)
+
+    aero_vehicle.set_moi_diag([I_s, I_a, I_a])
+
     # DEBUG
-    animate = 0
+    animate = 1
 
     #aero_vehicle.compute_buildup()
     #aero_vehicle.save_buildup()
     #aero_vehicle.save_buildup_fig()
     aero_vehicle.load_buildup()
 
-    front_flap_del = np.deg2rad(40)
-    back_flap_del = np.deg2rad(10)
-    control_arr = np.array([front_flap_del, front_flap_del, back_flap_del, -back_flap_del])
-    aero_vehicle.set_control(control_arr)
+    # Add Open Look Control
+    controls = OpenLoopControl(num_inputs=4)
+    controls.add_step(u_indices=[0, 1], start_time=0, value=np.deg2rad(35))
+    controls.add_step(u_indices=[2, 3], start_time=0, value=np.deg2rad(15))
+
+    controls.add_step(u_indices=[0, 1], start_time=10, value=-np.deg2rad(15))
+    controls.add_step(u_indices=[2], start_time=15, value=-np.deg2rad(15))
+    #controls.add_step(u_indices=[0, 1], start_time=3, value=np.deg2rad(30))
+    #controls.add_step(u_indices=[0, 1], start_time=5, value=np.deg2rad(30))
+    #controls.add_step(u_indices=[2, 3], start_time=12, value=np.deg2rad(20))
+    #controls.add_step(u_indices=[2, 3], start_time=15, value=-np.deg2rad(20))
+
+    #controls.add_step(u_indices=[0], start_time=6, value=-np.deg2rad(30))
+    #controls.add_step(u_indices=[1], start_time=6, value=-np.deg2rad(30))
 
     if animate:
-        pos_0 = np.array([0, 0, 950])  # Initial position
-        vel_0 = np.array([0, 0, -10])  # Initial velocity
+        pos_0 = np.array([0, 0, 1000])  # Initial position
+        vel_0 = np.array([0, 0, 0])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
-        tf = 20
+        tf = 30
 
-        t_arr, x_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, N=200)
+        t_arr, x_arr, u_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf,
+                            casadi=False, open_loop_control=controls, gravity=True)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
-        aero_vehicle.animate(t_arr, x_arr, cam_distance=60)
+        aero_vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
     else:
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=0.8)
         aero_vehicle.init_debug(size=5.5)
         aero_vehicle.show()
-
-"""
-    front_flap_del = 60
-    back_flap_del = 0
-    
-  Position (Inertial): [1.76196968e+02 1.03554441e-04 2.87400366e+01]
-  Velocity (Inertial): [ 1.73064557e+01  1.99982349e-04 -5.22171862e+01]
-  Quaternion: [ 9.99971588e-01 -5.11811703e-05  7.52580123e-03 -1.00681805e-04]
-  Angular Velocity (Body): [-0.00019237 -0.00608645 -0.00038755]
-"""

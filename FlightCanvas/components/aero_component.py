@@ -5,53 +5,30 @@ from typing import Optional, Union, List, Tuple
 
 import casadi as ca
 import numpy as np
-from FlightCanvas import utils
 import pyvista as pv
 
-from FlightCanvas.buildup_manager import BuildupManager
+from FlightCanvas import utils
 from FlightCanvas.actuators import ActuatorModel
-
-
-def get_rel_alpha_beta(v_rel: Union[np.ndarray, List[float]]):
-    """
-    Calculates the relative angle of attack (alpha) and sideslip angle (beta)
-    from a local-frame relative velocity vector.
-    :param v_rel: The relative velocity vector [u, v, w] in the component's local frame
-    :return: A tuple containing the angle of attack (alpha) and sideslip angle (beta)
-    """
-    epsilon = 1e-10
-    v_a = np.linalg.norm(v_rel)  # Total airspeed
-    alpha = np.arctan2(v_rel[2], v_rel[0])  # Angle of attack
-    beta = np.arcsin(v_rel[1] / (v_a + epsilon))  # Sideslip angle
-    return alpha, beta
-
-
-def get_rel_alpha_beta_casadi(v_rel: ca.MX) -> tuple[ca.MX, ca.MX]:
-    """
-    TODO
-    """
-
-    epsilon = 1e-10
-    v_a = ca.norm_2(v_rel)
-    alpha = ca.atan2(v_rel[2], v_rel[0])
-    beta = ca.asin(v_rel[1] / (v_a + epsilon))
-
-    return alpha, beta
+from FlightCanvas.buildup_manager import BuildupManager
 
 
 class AeroComponent(ABC):
     """
-    An abstract base class for any meshable, translatable part of a vehicle.
-    Represents a single, physical component.
+    An abstract base class for a single aerodynamic component of a vehicle, such as a wing, fuselage,
+    or control surface.
     """
 
-    def __init__(self, name: str,
-                 ref_direction: Union[np.ndarray, List[float]],
-                 control_pivot=None,
-                 is_prime=True,
-                 symmetric_comp: Optional['AeroComponent'] = None,
-                 actuator_model: Optional[ActuatorModel] = None, ):
+    def __init__(
+            self,
+            name: str,
+            ref_direction: Union[np.ndarray, List[float]],
+            control_pivot=None,
+            is_prime=True,
+            symmetric_comp: Optional['AeroComponent'] = None,
+            actuator_model: Optional[ActuatorModel] = None
+    ):
         """
+        Initializes an AeroComponent object
         :param name: The name of the component
         :param ref_direction: The primary axis of the component, used for rotation (e.g., hinge axis for a control surface)
         :param control_pivot: The axis at which the component will rotate given a control input
@@ -102,179 +79,194 @@ class AeroComponent(ABC):
         self.parent = parent
 
     def set_actuator(self, actuator: ActuatorModel):
-        self.actuator_model = actuator
-
-    def get_forces_and_moment_casadi(self, state: ca.MX) -> tuple[ca.MX, ca.MX]:
         """
         TODO
         """
+        self.actuator_model = actuator
+
+    def get_forces_and_moments(
+        self,
+        state: Union[np.ndarray, ca.MX],
+        true_deflection: Union[float, ca.MX]) \
+        -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
+        """
+        Calculates the aerodynamic forces and moments on the component.
+        This function is type-aware and will use either NumPy or CasADi based on the input type.
+        :param state: The state vector (position, velocity, quaternion, angular velocity) in either CasADi or NumPy.
+        :param true_deflection: TODO
+        """
+        is_casadi = isinstance(state, (ca.SX, ca.MX))
+
+        # Select the correct library functions and types based on the input
+        if is_casadi:
+            lib = ca
+            dir_cosine_func = utils.dir_cosine_ca
+            to_type = ca.MX
+            norm = ca.norm_2
+        else:
+            lib = np
+            dir_cosine_func = utils.dir_cosine_np
+            to_type = lambda x: x
+            norm = np.linalg.norm
+
+        # Extract state information
         vel = state[3:6]
         quat = state[6:10]
         angular_rate = state[10:]
 
-        # Calculate Direction Cosine Matrix from the quaternion
-        C_B_I = utils.dir_cosine_ca(quat)  # Body to Inertial
+        # Compute direction cosine function
+        C_B_I = dir_cosine_func(quat)
 
-        # Transform inertial velocity into the vehicle's body frame
+        # Get velocity of the body
         v_B = C_B_I @ vel
 
-        T = ca.MX(self.static_transform_matrix)
-        R = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
+        # Get transform matrix
+        T = to_type(self.get_transform(true_deflection))
 
-        # Transform velocity from body frame to the component's local frame
-        v_comp = R @ v_B - ca.cross(angular_rate, ca.MX(self.xyz_ref))
-        speed = ca.norm_2(v_comp)
+        # Get rotation matrix from body frame to component frame
+        R = T[:3, :3]
 
-        # Get angle of attack (alpha) and sideslip (beta)
-        alpha, beta = get_rel_alpha_beta_casadi(v_comp)
+        # Compute distance from component to vehicle center of mass in the body frame
+        lever_arm = to_type(self.parent.xyz_ref - self.xyz_ref)
+
+        # Get local velocity of the component
+        v_comp = R @ (v_B + lib.cross(angular_rate, lever_arm))
+
+        # Get local angular rate
+        local_angular_rate = R @ angular_rate
+
+        # Get airspeed of component
+        speed = norm(v_comp)
+
+        # Compute angle of attack and sideslip
+        alpha, beta = self.get_rel_alpha_beta(v_comp)
+
+        # Extract angular rates (works in both numpy and casadi)
+        p = local_angular_rate[0]
+        q = local_angular_rate[1]
+        r = local_angular_rate[2]
 
         # if component is main then use buildup manager, else use symmetric component buildup manager
         if self.is_prime:
-            F_b, M_b = self.buildup_manager.get_forces_and_moments_casadi(alpha, beta, speed)
+            F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, speed, p, q, r)
         else:
             # if the component is reflected around xz plane then use get_forces_and_moment_xz_plane function
             if self.symmetry_type == 'xz-plane':
-                F_b, M_b = self.get_forces_and_moment_xz_plane_casadi(alpha, beta, speed)
+                F_b, M_b = self.get_forces_and_moment_xz_plane(alpha, beta, speed, local_angular_rate)
             # if the component is rotated around x-axis then use get_forces_and_moment_x_axial function
             elif self.symmetry_type == 'x-radial':
-                F_b, M_b = self.get_forces_and_moment_x_axial_casadi(v_comp)
+                F_b, M_b = self.get_forces_and_moment_x_axial(v_comp, angular_rate)
             else:
                 raise ValueError("self.symmetry_type needed to be either 'xz-plane' or 'x-radial'")
 
-        # compute distance from component to vehicle center of mass
-        lever_arm = ca.MX(self.parent.xyz_ref - self.xyz_ref)
+        # Compute moment arm
+        M_b_cross = lib.cross(lever_arm, F_b)
 
-        # compute moment arm
-        M_b_cross = ca.cross(lever_arm, F_b)
-
-        # sum aero-moments and moments due to forces
+        # Sum aero-moments and moments due to forces
         M_b_total = M_b + M_b_cross
         return F_b, M_b_total
 
-    def get_forces_and_moment_lookup(self, state: np.ndarray, deflection=0) -> tuple[np.ndarray, np.ndarray]:
+    def get_forces_and_moment_xz_plane(
+            self,
+            alpha: Union[float, ca.MX],
+            beta: Union[float, ca.MX],
+            speed: Union[float, ca.MX],
+            angular_rate: Union[np.ndarray, ca.MX]
+    ) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
-        Looks up aerodynamic forces by interpolating pre-computed buildup data
-        :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
-        :param deflection: The deflection angle of component
-        :return: Forces and moments from lookup table
+        Returns the forces and moments reflected in the xz plane.
+        Switches between NumPy and CasADi based on input type.
+        :param alpha: Angle of attack (float for NumPy, ca.MX for CasADi)
+        :param beta: Side slip angle (float for NumPy, ca.MX for CasADi)
+        :param speed: Velocity (float for NumPy, ca.MX for CasADi)
+        :param angular_rate: Angular rotation of the vehicle in the body frame (float for NumPy, ca.MX for CasADi)
+        :return: Forces and moments (np.ndarray or ca.MX)
         """
-        # Extracts velocity, orientation and angular rate from state vector
-        vel = state[3:6]
-        quat = state[6:10]
-        angular_rate = state[10:]
+        # Check if inputs are CasADi symbolic variables
+        is_casadi = isinstance(alpha, (ca.SX, ca.MX))
 
-        # Calculate Direction Cosine Matrix from the quaternion
-        C_B_I = utils.dir_cosine_np(quat)  # Body to Inertial
-
-        # Transform inertial velocity into the vehicle's body frame
-        v_B = C_B_I @ vel
-
-        #T = self.update_transform(rotation=deflection)
-        T = self.static_transform_matrix
-        R = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
-
-        # Transform velocity from body frame to the component's local frame
-        v_comp = R @ v_B - np.cross(angular_rate, self.xyz_ref)
-        speed = float(np.linalg.norm(v_comp))
-
-        # Get angle of attack (alpha) and sideslip (beta)
-        alpha, beta = get_rel_alpha_beta(v_comp)
-
-        # if component is main then use buildup manager, else use symmetric component buildup manager
-        if self.is_prime:
-            F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, v_comp)
+        if is_casadi:
+            # Define a function to construct a vertical vector
+            def vertcat_func(*args):
+                return ca.vertcat(*args)
         else:
-            # if the component is reflected around xz plane then use get_forces_and_moment_xz_plane function
-            if self.symmetry_type == 'xz-plane':
-                F_b, M_b = self.get_forces_and_moment_xz_plane(alpha, beta, speed)
-            # if the component is rotated around x-axis then use get_forces_and_moment_x_axial function
-            elif self.symmetry_type == 'x-radial':
-                F_b, M_b = self.get_forces_and_moment_x_axial(v_comp)
-            else:
-                raise ValueError("self.symmetry_type needed to be either 'xz-plane' or 'x-radial'")
+            # Define the NumPy equivalent for constructing a vector
+            def vertcat_func(*args):
+                return np.array(args)
 
-        # compute distance from component to vehicle center of mass
-        lever_arm = self.parent.xyz_ref - self.xyz_ref
+        mirrored_beta = -beta
 
-        # compute moment arm
-        M_b_cross = np.cross(lever_arm, F_b)
+        # The roll (p) and yaw (r) rates are inverted due to the reflection.
+        p, q, r = angular_rate[0], angular_rate[1], angular_rate[2]
+        mirrored_angular_rate = vertcat_func(-p, q, -r)
 
-        # sum aero-moments and moments due to forces
-        M_b_total = M_b + M_b_cross
-        return F_b, M_b_total
+        F_b, M_b = self.symmetric_comp.buildup_manager.get_forces_and_moments(
+            alpha,
+            mirrored_beta,
+            speed,
+            mirrored_angular_rate[0],
+            mirrored_angular_rate[1],
+            mirrored_angular_rate[2]
+        )
 
-    def get_forces_and_moment_xz_plane(self, alpha: float, beta: float, speed: float) -> tuple[np.ndarray, np.ndarray]:
+        F_b_mirrored = vertcat_func(F_b[0], -F_b[1], F_b[2])
+
+        # The rolling moment (l) and yawing moment (n) are inverted.
+        M_b_mirrored = vertcat_func(-M_b[0], M_b[1], -M_b[2])
+
+        return F_b_mirrored, M_b_mirrored
+
+    def get_forces_and_moment_x_axial(
+            self,
+            v_comp: Union[np.ndarray, ca.MX],
+            angular_rate: Union[np.ndarray, ca.MX]
+    ) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
-        Returns the forces and moments from buildup data for FlightCanvas that are reflected in the xz plane.
-        :param alpha: Angle of attack of component
-        :param beta: Side slip angle of component
-        :param speed: Velocity of component
-        :return: Forces and moments from buildup data for FlightCanvas that are reflected in the xz plane
+        Returns the forces and moments rotated from the component's local frame
+        to the body frame. Switches between NumPy and CasADi based on input type.
+        :param v_comp: Velocity of the component (np.ndarray or ca.MX)
+        :param angular_rate: Angular rate of the component (np.ndarray or ca.MX)
+        :return: Forces and moments (np.ndarray or ca.MX)
         """
-        F_b, M_b = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, -beta, speed)
-        F_b[1] = -F_b[1]
-        M_b[0] = -M_b[0]
-        M_b[2] = -M_b[2]
-        return F_b, M_b
+        # Set up library-specific functions and variables
+        if isinstance(v_comp, ca.MX):
+            T = ca.MX(self.static_transform_matrix)
+            norm = ca.norm_2
+        else:
+            T = self.static_transform_matrix
+            norm = np.linalg.norm
 
-    def get_forces_and_moment_xz_plane_casadi(self, alpha: ca.MX, beta: ca.MX, speed: ca.MX) -> tuple[ca.MX, ca.MX]:
-        """
-        Returns the forces and moments from buildup data for FlightCanvas that are reflected in the xz plane.
-        :param alpha: Angle of attack of component
-        :param beta: Side slip angle of component
-        :param speed: Velocity of component
-        :return: Forces and moments from buildup data for FlightCanvas that are reflected in the xz plane
-        """
-        F_b, M_b = self.symmetric_comp.buildup_manager.get_forces_and_moments_casadi(alpha, -beta, speed)
-        F_b = ca.vertcat(F_b[0], -F_b[1], F_b[2])
-        M_b = ca.vertcat(-M_b[0], M_b[1], -M_b[2])
-        return F_b, M_b
-
-    def get_forces_and_moment_x_axial(self, v_comp: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Returns the forces and moments from buildup data for FlightCanvas that are rotated around the x-axis.
-        :param v_comp: Velocity of component
-        :return: Forces and moments from buildup data for FlightCanvas that are reflected in the xz plane
-        """
-
-        T = self.static_transform_matrix
-        R_Comp_Body = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
+        # Perform the calculation using the selected functions
+        R_Comp_Body = T[:3, :3]
         R_Body_Comp = R_Comp_Body.T
 
-        alpha, beta = get_rel_alpha_beta(v_comp)
-        speed = np.linalg.norm(v_comp)
+        # Get local angular rate
+        local_angular_rate = R_Comp_Body @ angular_rate
 
-        F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, beta, speed)
+        # Get airspeed of component
+        speed = norm(v_comp)
+
+        # Compute angle of attack and sideslip
+        alpha, beta = self.get_rel_alpha_beta(v_comp)
+
+        # Compute local forces and moments in the component frame
+        F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, beta, speed,
+                                                                                          *local_angular_rate)
+
+        # Rotate forces and moments from component frame to body frame
         F_b = R_Body_Comp @ F_b_local
         M_b = R_Body_Comp @ M_b_local
+
         return F_b, M_b
 
-    def get_forces_and_moment_x_axial_casadi(self, v_comp: ca.MX) -> tuple[ca.MX, ca.MX]:
-        """
-        Returns the forces and moments from buildup data for FlightCanvas that are rotated around the x-axis.
-        :param v_comp: Velocity of component
-        :return: Forces and  moments from buildup data for FlightCanvas that are reflected in the xz plane
-        """
-
-        T = ca.MX(self.static_transform_matrix)
-        R_Comp_Body = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
-        R_Body_Comp = R_Comp_Body.T
-
-        alpha, beta = get_rel_alpha_beta_casadi(v_comp)
-        speed = ca.norm_2(v_comp)
-
-        F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments_casadi(alpha, beta, speed)
-        F_b = R_Body_Comp @ F_b_local
-        M_b = R_Body_Comp @ M_b_local
-        return F_b, M_b
-
-    def init_buildup_manager(self, vehicle_path):
+    def init_buildup_manager(self, vehicle_path: str, component: 'AeroComponent'):
         """
         Adds buildup manager that holds aerodynamic forces and moments to object
         :param vehicle_path: The path to the buildup manager file
+        :param component: The aerodynamic component to perform the buildup on
         """
         if self.is_prime:
-            self.buildup_manager = BuildupManager(self.name, vehicle_path)
+            self.buildup_manager = BuildupManager(self.name, vehicle_path, component)
 
     def compute_buildup(self):
         """
@@ -282,14 +274,14 @@ class AeroComponent(ABC):
         of alpha and beta angles at a specified velocity
         """
         if self.is_prime:
-            self.buildup_manager.compute_buildup(self.asb_airplane)
+            self.buildup_manager.compute_buildup()
 
     def save_buildup(self):
         """
         Saves aerodynamic coefficient from the buildup data
         """
         if self.is_prime:
-            if self.buildup_manager.asb_data is None:
+            if self.buildup_manager.asb_data_static is None:
                 self.compute_buildup()
             self.buildup_manager.save_buildup()
 
@@ -298,7 +290,7 @@ class AeroComponent(ABC):
         Saves a contour plot of a specified aerodynamic coefficient from the buildup data
         """
         if self.is_prime:
-            if self.buildup_manager.asb_data is None:
+            if self.buildup_manager.asb_data_static is None:
                 self.compute_buildup()
             self.buildup_manager.save_buildup_figs()
 
@@ -330,75 +322,58 @@ class AeroComponent(ABC):
         # The user_matrix allows for efficient transformation of the actor
         self.pv_actor.user_matrix = self.static_transform_matrix
 
-    def get_transform(self, rotation=0) -> np.ndarray:
+    def get_transform(self, rotation: Union[float, ca.MX] = 0) -> Union[np.ndarray, ca.MX]:
         """
         Calculates the 4x4 homogeneous transformation matrix for the component
         :param rotation: The rotation angle [radians] around the `ref_direction`
         :return: The 4x4 transformation matrix
         """
+        is_casadi = isinstance(rotation, (ca.SX, ca.MX))
+
+        if is_casadi:
+            # Use CasADi functions and types
+            eye_func = ca.MX.eye
+            to_type = ca.MX
+        else:
+            # Use NumPy functions and types
+            eye_func = np.eye
+            to_type = lambda x: x
+
+        # Calculate Static Transformation Matrices
         x_vec = np.array([1, 0, 0])
         flip_matrix = np.eye(4)
-        axial_rotation = np.eye(4)
+        axial_rotation_matrix = np.eye(4)
 
-        # If this is not a 'prime' component invert the rotation for symmetric control deflection
+        # If this is not a 'prime' component, apply symmetry rules
         if not self.is_prime:
-            # if the component is reflected around xz plane then flip around y-axis
             if self.symmetry_type == 'xz-plane':
-                rotation = -rotation
+                rotation = -rotation  # Invert rotation for symmetric deflection
                 flip_matrix[1, 1] = -1
-            # check for x-radial symmetry
             elif self.symmetry_type == 'x-radial':
-                axial_rotation[:3, :3] = utils.rotate_z(self.radial_angle)
+                axial_rotation_matrix[:3, :3] = utils.rotate_z(self.radial_angle)
             else:
-                raise ValueError("self.symmetry_type needed to be either 'xz-plane' or 'x-radial'")
+                raise ValueError("self.symmetry_type must be either 'xz-plane' or 'x-radial'")
 
-        # rotate from the standard body X-axis to the component's defined axis
+        # Static rotations based on component geometry (can be calculated with NumPy)
         transform_from_axis_vec = utils.rotation_matrix_from_vectors(x_vec, self.ref_direction)
+        transform_from_ref = utils.translation_matrix(self.xyz_ref)
 
-        # rotate around that new axis (for control deflection)
-        transform_from_control = np.eye(4)
+        # Calculate the Dynamic Control Deflection Matrix
+        # Use the dispatched functions to create a matrix of the correct type
+        transform_from_control = eye_func(4)
         if self.control_pivot is not None:
             transform_from_control = utils.rotation_matrix_from_axis_angle(self.control_pivot, rotation)
 
-        # translate the rotated component to its reference position in the body frame
-        transform_from_ref = utils.translation_matrix(self.xyz_ref)
+        # Combine Transformations
+        final_transform = (
+                to_type(transform_from_ref) @
+                transform_from_control @
+                to_type(transform_from_axis_vec) @
+                to_type(flip_matrix) @
+                to_type(axial_rotation_matrix)
+        )
 
-        # The final matrix is the product of these transformations
-        static_transform_matrix = transform_from_ref @ transform_from_control @ transform_from_axis_vec @ flip_matrix @ axial_rotation
-        return static_transform_matrix
-
-    def casadi_transform(self, deflection: ca.MX) -> ca.MX:
-        x_vec = np.array([1, 0, 0])
-        flip_matrix = np.eye(4)
-        axial_deflection = np.eye(4)
-
-        # If this is not a 'prime' component invert the rotation for symmetric control deflection
-        if not self.is_prime:
-            # if the component is reflected around xz plane then flip around y-axis
-            if self.symmetry_type == 'xz-plane':
-                deflection = -deflection
-                flip_matrix[1, 1] = -1
-            # check for x-radial symmetry
-            elif self.symmetry_type == 'x-radial':
-                axial_deflection[:3, :3] = utils.rotate_z(self.radial_angle)
-            else:
-                raise ValueError("self.symmetry_type needed to be either 'xz-plane' or 'x-radial'")
-
-        # rotate from the standard body X-axis to the component's defined axis
-        transform_from_axis_vec = utils.rotation_matrix_from_vectors(x_vec, self.ref_direction)
-
-        # rotate around that new axis (for control deflection)
-        transform_from_control = ca.MX.eye(4)
-        if self.control_pivot is not None:
-            transform_from_control = utils.rotation_matrix_from_axis_angle_casadi(self.control_pivot, deflection)
-
-        # translate the rotated component to its reference position in the body frame
-        transform_from_ref = utils.translation_matrix(self.xyz_ref)
-
-        # The final matrix is the product of these transformations
-        static_transform_matrix = transform_from_ref @ transform_from_control @ transform_from_axis_vec @ flip_matrix @ axial_deflection
-        return static_transform_matrix
-
+        return final_transform
 
     def update_transform(self, **kwargs):
         """
@@ -424,11 +399,13 @@ class AeroComponent(ABC):
 
         self.dynamic_transform_matrix = static_to_dynamic_transform @ self.static_transform_matrix
 
-    def update_actor(self, state: np.ndarray):
+    def update_actor(self, state: np.ndarray, true_deflection: float):
         """
         Updates the PyVista actor's transformation matrix in the 3D scene
         :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
+        :param true_deflection: The true deflection angle of the aero component
         """
+        self.static_transform_matrix = self.get_transform(true_deflection)
         self.update_dynamic_transform(state)
         self.pv_actor.user_matrix = self.dynamic_transform_matrix
 
@@ -458,10 +435,11 @@ class AeroComponent(ABC):
         self.ref_direction_actor = self.draw_ref_direction(pl, size=size)
         self.control_pivot_actor = self.draw_control_pivot(pl, size=size)
 
-    def update_debug(self, state: np.ndarray):
+    def update_debug(self, state: np.ndarray, true_deflection: float):
         """
         Updates debug visuals for this component in a PyVista plotter
         :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
+        :param true_deflection: The true deflection angle of the aero component
         """
         pos_inertial = state[:3]
         quat = state[6:10]
@@ -474,7 +452,7 @@ class AeroComponent(ABC):
 
         start = pos_inertial + R @ self.xyz_ref
 
-        F_b, _ = self.get_forces_and_moment_lookup(state)
+        F_b, _ = self.get_forces_and_moments(state, true_deflection)
 
         k = .15
         direction = (R @ F_b) * k
@@ -524,116 +502,24 @@ class AeroComponent(ABC):
                                                          line_width=6, length=length)
         return None
 
-        # T = self.static_transform_matrix
-        # R_Comp_Body = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
-        # R_Body_Comp = R_Comp_Body.T
-
-        # F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, beta, v_comp)
-        # F_b = R_Body_Comp @ F_b_local
-        # M_b = R_Body_Comp @ M_b_local
-        # return F_b, M_b
-
-    '''
-    def get_forces_and_moment_lookup(self, v_B: np.ndarray) -> np.ndarray:
+    @staticmethod
+    def get_rel_alpha_beta(v_rel: Union[np.ndarray, ca.MX]) -> Tuple[Union[float, ca.MX], Union[float, ca.MX]]:
         """
-        Looks up aerodynamic forces by interpolating pre-computed buildup data
-        :param v_B: The velocity vector of the vehicle in the body frame
-        :return: Forces and moments from lookup table
+        Calculates the relative angle of attack (alpha) and sideslip angle (beta)
+        from a local-frame relative velocity vector. This function is type-aware.
+        :param v_rel: The relative velocity vector [u, v, w] in the component's local frame
+        :return: A tuple containing the angle of attack (alpha) and sideslip angle (beta)
         """
-        alpha, beta = self.get_alpha_beta(v_B)
+        is_casadi = isinstance(v_rel, (ca.SX, ca.MX))
+        epsilon = 1e-10
 
-        # Get the alpha and beta axes from the pre-computed grid (in radians)
-        alpha_lin_rad = np.deg2rad(self.alpha_grid[:, 0])
-        beta_lin_rad = np.deg2rad(self.beta_grid[0, :])
-
-        # Reshape force data to be compatible with interpolation
-        data = self.asb_data["F_b"][0].reshape(self.alpha_grid.shape)
-        data_3d = data[:, :, np.newaxis]
-
-        # Perform linear interpolation to find the force at the current alpha/beta
-        F_b = utils.linear_interpolation(alpha_lin_rad, beta_lin_rad, alpha, beta, data_3d)
-        return F_b
-    '''
-
-
-'''
-    def compute_buildup(self):
-        """
-        Computes the aerodynamic buildup data for the component over a range
-        of alpha and beta angles at a specified velocity
-        """
-        self.buildup_manager.compute_buildup()
-        # Create a meshgrid of alpha and beta values to analyze
-        self.beta_grid, self.alpha_grid = np.meshgrid(
-            np.linspace(-90, 90, 100),
-            np.linspace(-180, 180, 150)
-        )
-        # Define the operating points for the analysis
-        op_point = asb.OperatingPoint(
-            velocity=10,
-            alpha=self.alpha_grid.flatten(),
-            beta=self.beta_grid.flatten()
-        )
-        # Run the AeroBuildup analysis
-        self.asb_data = asb.AeroBuildup(
-            airplane=self.asb_airplane,
-            op_point=op_point
-        ).run()
-
-    def draw_buildup(self, name: str, ID: str, index=None):
-        """
-        Draws a contour plot of a specified aerodynamic coefficient from the
-        buildup data
-        :param name: The name of the component
-        :param ID: The identifier for the data to plot (e.g., "CL", "CD", "F_b")
-        :param index: The index if the data is a vector (e.g., 0 for Fx in F_b)
-        """
-        if index is None:
-            data = self.asb_data[ID]
-            title = f"`{name}` {ID}"
+        if is_casadi:
+            v_a = ca.norm_2(v_rel)
+            alpha = ca.atan2(v_rel[2], v_rel[0])
+            beta = ca.asin(v_rel[1] / (v_a + epsilon))
         else:
-            data = self.asb_data[ID][index]
-            title = f"`{name}` {ID} [{index}]"
+            v_a = np.linalg.norm(v_rel)
+            alpha = np.arctan2(v_rel[2], v_rel[0])
+            beta = np.arcsin(v_rel[1] / (v_a + epsilon))
 
-        # Create the contour plot
-        p.contour(
-            self.beta_grid, self.alpha_grid, data.reshape(self.alpha_grid.shape),
-            colorbar_label=f"${ID}$ [-]",
-            linelabels_format=lambda x: f"{x:.2f}",
-            linelabels_fontsize=7,
-            cmap="RdBu",
-            alpha=0.6
-        )
-        p.set_ticks(15, 5, 15, 5)
-        p.show_plot(
-            title,
-            r"Sideslip angle $\beta$ [deg]",
-            r"Angle of Attack $\alpha$ [deg]",
-            set_ticks=False
-        )
-        plt.show()
-'''
-
-# def get_alpha_beta(self, v_comp: np.ndarray) -> Tuple[float, float]:
-"""
-Calculates the component's local angle of attack and sideslip.
-:param v_comp: The velocity vector of the component in the body frame
-:return: A tuple containing the component's local angle of attack (alpha) and
-    sideslip angle (beta) in radians
-"""
-# T = self.get_transform()
-# R = T[:3, :3]  # Extract the 3x3 rotation matrix from the transform
-
-
-# alpha, beta = get_rel_alpha_beta(v_comp)
-# return alpha, beta
-
-# self.alpha_grid = None  # Hold grid of an angle of attack for buildup
-# self.beta_grid = None  # Hold grid of sideslip angles for buildup
-# self.asb_data = None  # To hold the aero build data
-
-# else:
-#    F_b, M_b = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, -beta, v_comp)
-#    F_b[1] = -F_b[1]
-#    M_b[0] = -M_b[0]
-#    M_b[2] = -M_b[2]
+        return alpha, beta

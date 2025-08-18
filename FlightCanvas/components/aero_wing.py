@@ -16,16 +16,16 @@ class AeroWing(AeroComponent):
     """
 
     def __init__(
-            self,
-            name: str,
-            xsecs: List["asb.WingXSec"],
-            ref_direction: Union[np.ndarray, List[float]],
-            control_pivot=None,
-            is_prime: bool = True,
-            symmetric_comp: Optional['AeroComponent'] = None,
-            actuator_model: Optional[ActuatorModel] = None,
-            symmetry_type=None,
-            **kwargs
+        self,
+        name: str,
+        xsecs: List["asb.WingXSec"],
+        ref_direction: Union[np.ndarray, List[float]],
+        control_pivot=None,
+        is_prime: bool = True,
+        symmetric_comp: Optional['AeroComponent'] = None,
+        actuator_model: Optional[ActuatorModel] = None,
+        symmetry_type=None,
+        **kwargs
     ):
         """
         Initializes the AeroWing component
@@ -68,13 +68,13 @@ class AeroWing(AeroComponent):
 
 
 def create_planar_wing_pair(
-        name: str,
-        xsecs: List["asb.WingXSec"],
-        translation: Union[np.ndarray, List[float]] = (0, 0, 0),
-        ref_direction: Union[np.ndarray, List[float]] = (1, 0, 0),
-        control_pivot=None,
-        actuator_model: Optional[ActuatorModel] = None,
-        **kwargs
+    name: str,
+    xsecs: List["asb.WingXSec"],
+    translation: Union[np.ndarray, List[float]] = (0, 0, 0),
+    ref_direction: Union[np.ndarray, List[float]] = (1, 0, 0),
+    control_pivot=None,
+    actuator_model: Optional[ActuatorModel] = None,
+    **kwargs
 ) -> List[AeroWing]:
     """
     Creates a symmetric pair of AeroWing objects from a half-span definition
@@ -136,14 +136,14 @@ def create_planar_wing_pair(
 
 
 def create_axial_wing_pair(
-        name: str,
-        xsecs: List["asb.WingXSec"],
-        translation: Union[np.ndarray, List[float]] = (0, 0, 0),
-        ref_direction: Union[np.ndarray, List[float]] = (1, 0, 0),
-        control_pivot: Union[np.ndarray, List[float]] = None,
-        actuator_model: Optional[ActuatorModel] = None,
-        num_wings: int = 2,
-        **kwargs
+    name: str,
+    xsecs: List["asb.WingXSec"],
+    translation: Union[np.ndarray, List[float]] = (0, 0, 0),
+    ref_direction: Union[np.ndarray, List[float]] = (1, 0, 0),
+    control_pivot: Union[np.ndarray, List[float]] = None,
+    actuator_model: Optional[ActuatorModel] = None,
+    num_wings: int = 2,
+    **kwargs
 ) -> List[AeroWing]:
     """
     Creates an axial symmetric pair of AeroWing objects

@@ -7,7 +7,6 @@ from FlightCanvas.components.aero_wing import create_axial_wing_pair
 from FlightCanvas.aero_vehicle import AeroVehicle
 from FlightCanvas import utils
 
-
 if __name__ == '__main__':
     tail_airfoil = asb.Airfoil("naca0010")
 
@@ -39,12 +38,10 @@ if __name__ == '__main__':
     # DEBUG
     animate = 1
 
-    #aero_vehicle.compute_buildup()
+    aero_vehicle.compute_buildup()
     #aero_vehicle.save_buildup()
     #aero_vehicle.save_buildup_fig()
-    aero_vehicle.load_buildup()
-
-
+    #aero_vehicle.load_buildup()
 
     if animate:
         pos_0 = np.array([0, 0, 950])  # Initial position
@@ -53,18 +50,13 @@ if __name__ == '__main__':
         omega_0 = np.array([0, 0, 2])  # Initial angular velocity
         tf = 10
 
-        #aero_vehicle.test_casadi(pos_0, vel_0, quat_0, omega_0)
-
-        t_arr, x_arr = aero_vehicle.run_sim_casadi(pos_0, vel_0, quat_0, omega_0, tf, gravity=True)
-        #t_arr, x_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, gravity=True)
+        t_arr, x_arr, u_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf,
+                                            casadi=False, gravity=True)
+        #t_arr_2, x_arr_2 = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, gravity=True)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
-        aero_vehicle.animate(t_arr, x_arr, debug=False)
+        aero_vehicle.animate(t_arr, x_arr, u_arr, debug=False)
     else:
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=0.8)
         aero_vehicle.init_debug(size=2)
         aero_vehicle.show()
 
-    #aero_vehicle.set_control(["Fin"], [np.deg2rad(30)])
-    #aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=0.8)
-    #aero_vehicle.init_debug(label=True)
-    #aero_vehicle.show()
