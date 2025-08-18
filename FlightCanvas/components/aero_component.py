@@ -5,50 +5,30 @@ from typing import Optional, Union, List, Tuple
 
 import casadi as ca
 import numpy as np
-from FlightCanvas import utils
 import pyvista as pv
 
-from FlightCanvas.buildup_manager import BuildupManager
+from FlightCanvas import utils
 from FlightCanvas.actuators import ActuatorModel
-
-
-def get_rel_alpha_beta(v_rel: Union[np.ndarray, ca.MX]) -> Tuple[Union[float, ca.MX], Union[float, ca.MX]]:
-    """
-    Calculates the relative angle of attack (alpha) and sideslip angle (beta)
-    from a local-frame relative velocity vector. This function is type-aware.
-    :param v_rel: The relative velocity vector [u, v, w] in the component's local frame
-    :return: A tuple containing the angle of attack (alpha) and sideslip angle (beta)
-    """
-    is_casadi = isinstance(v_rel, (ca.SX, ca.MX))
-    epsilon = 1e-10
-
-    if is_casadi:
-        v_a = ca.norm_2(v_rel)
-        alpha = ca.atan2(v_rel[2], v_rel[0])
-        beta = ca.asin(v_rel[1] / (v_a + epsilon))
-    else:
-        v_a = np.linalg.norm(v_rel)
-        alpha = np.arctan2(v_rel[2], v_rel[0])
-        beta = np.arcsin(v_rel[1] / (v_a + epsilon))
-
-    return alpha, beta
+from FlightCanvas.buildup_manager import BuildupManager
 
 
 class AeroComponent(ABC):
     """
-    An abstract base class for any meshable, translatable part of a vehicle.
-    Represents a single, physical component.
+    An abstract base class for a single aerodynamic component of a vehicle, such as a wing, fuselage,
+    or control surface.
     """
 
     def __init__(
-        self,
-        name: str,
-        ref_direction: Union[np.ndarray, List[float]],
-        control_pivot=None,
-        is_prime=True,
-        symmetric_comp: Optional['AeroComponent'] = None,
-        actuator_model: Optional[ActuatorModel] = None, ):
+            self,
+            name: str,
+            ref_direction: Union[np.ndarray, List[float]],
+            control_pivot=None,
+            is_prime=True,
+            symmetric_comp: Optional['AeroComponent'] = None,
+            actuator_model: Optional[ActuatorModel] = None
+    ):
         """
+        Initializes an AeroComponent object
         :param name: The name of the component
         :param ref_direction: The primary axis of the component, used for rotation (e.g., hinge axis for a control surface)
         :param control_pivot: The axis at which the component will rotate given a control input
@@ -104,12 +84,11 @@ class AeroComponent(ABC):
         """
         self.actuator_model = actuator
 
-
     def get_forces_and_moments(
         self,
         state: Union[np.ndarray, ca.MX],
         true_deflection: Union[float, ca.MX]) \
-    -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
+        -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Calculates the aerodynamic forces and moments on the component.
         This function is type-aware and will use either NumPy or CasADi based on the input type.
@@ -160,7 +139,7 @@ class AeroComponent(ABC):
         speed = norm(v_comp)
 
         # Compute angle of attack and sideslip
-        alpha, beta = get_rel_alpha_beta(v_comp)
+        alpha, beta = self.get_rel_alpha_beta(v_comp)
 
         # Extract angular rates (works in both numpy and casadi)
         p = local_angular_rate[0]
@@ -188,11 +167,11 @@ class AeroComponent(ABC):
         return F_b, M_b_total
 
     def get_forces_and_moment_xz_plane(
-        self,
-        alpha: Union[float, ca.MX],
-        beta: Union[float, ca.MX],
-        speed: Union[float, ca.MX],
-        angular_rate: Union[np.ndarray, ca.MX]
+            self,
+            alpha: Union[float, ca.MX],
+            beta: Union[float, ca.MX],
+            speed: Union[float, ca.MX],
+            angular_rate: Union[np.ndarray, ca.MX]
     ) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Returns the forces and moments reflected in the xz plane.
@@ -200,6 +179,7 @@ class AeroComponent(ABC):
         :param alpha: Angle of attack (float for NumPy, ca.MX for CasADi)
         :param beta: Side slip angle (float for NumPy, ca.MX for CasADi)
         :param speed: Velocity (float for NumPy, ca.MX for CasADi)
+        :param angular_rate: Angular rotation of the vehicle in the body frame (float for NumPy, ca.MX for CasADi)
         :return: Forces and moments (np.ndarray or ca.MX)
         """
         # Check if inputs are CasADi symbolic variables
@@ -237,9 +217,9 @@ class AeroComponent(ABC):
         return F_b_mirrored, M_b_mirrored
 
     def get_forces_and_moment_x_axial(
-        self,
-        v_comp: Union[np.ndarray, ca.MX],
-        angular_rate: Union[np.ndarray, ca.MX]
+            self,
+            v_comp: Union[np.ndarray, ca.MX],
+            angular_rate: Union[np.ndarray, ca.MX]
     ) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Returns the forces and moments rotated from the component's local frame
@@ -267,10 +247,11 @@ class AeroComponent(ABC):
         speed = norm(v_comp)
 
         # Compute angle of attack and sideslip
-        alpha, beta = get_rel_alpha_beta(v_comp)
+        alpha, beta = self.get_rel_alpha_beta(v_comp)
 
         # Compute local forces and moments in the component frame
-        F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, beta, speed, *local_angular_rate)
+        F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, beta, speed,
+                                                                                          *local_angular_rate)
 
         # Rotate forces and moments from component frame to body frame
         F_b = R_Body_Comp @ F_b_local
@@ -282,6 +263,7 @@ class AeroComponent(ABC):
         """
         Adds buildup manager that holds aerodynamic forces and moments to object
         :param vehicle_path: The path to the buildup manager file
+        :param component: The aerodynamic component to perform the buildup on
         """
         if self.is_prime:
             self.buildup_manager = BuildupManager(self.name, vehicle_path, component)
@@ -392,7 +374,6 @@ class AeroComponent(ABC):
         )
 
         return final_transform
-
 
     def update_transform(self, **kwargs):
         """
@@ -520,3 +501,25 @@ class AeroComponent(ABC):
             return utils.draw_line_from_point_and_vector(pl, self.xyz_ref, self.control_pivot, color='blue',
                                                          line_width=6, length=length)
         return None
+
+    @staticmethod
+    def get_rel_alpha_beta(v_rel: Union[np.ndarray, ca.MX]) -> Tuple[Union[float, ca.MX], Union[float, ca.MX]]:
+        """
+        Calculates the relative angle of attack (alpha) and sideslip angle (beta)
+        from a local-frame relative velocity vector. This function is type-aware.
+        :param v_rel: The relative velocity vector [u, v, w] in the component's local frame
+        :return: A tuple containing the angle of attack (alpha) and sideslip angle (beta)
+        """
+        is_casadi = isinstance(v_rel, (ca.SX, ca.MX))
+        epsilon = 1e-10
+
+        if is_casadi:
+            v_a = ca.norm_2(v_rel)
+            alpha = ca.atan2(v_rel[2], v_rel[0])
+            beta = ca.asin(v_rel[1] / (v_a + epsilon))
+        else:
+            v_a = np.linalg.norm(v_rel)
+            alpha = np.arctan2(v_rel[2], v_rel[0])
+            beta = np.arcsin(v_rel[1] / (v_a + epsilon))
+
+        return alpha, beta

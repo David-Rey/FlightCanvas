@@ -1,26 +1,44 @@
 # aero_project/FlightCanvas/buildup_manager.py
 
-import aerosandbox as asb
-import numpy as np
-from matplotlib import pyplot as plt
-import aerosandbox.tools.pretty_plots as p
 import os
 import pathlib
 import pickle
-from FlightCanvas import utils
-from typing import Tuple
+from typing import Tuple, Union
+
 import casadi as ca
-from typing import Union
+import numpy as np
+from matplotlib import pyplot as plt
+
+import aerosandbox as asb
+import aerosandbox.tools.pretty_plots as p
+
+from FlightCanvas import utils
 
 
 class BuildupManager:
-    def __init__(self, name: str,
+    """
+    Manages the aerodynamic buildup process for a vehicle component, handling both static and damping aero-data
+    """
+    def __init__(
+        self,
+        name: str,
         vehicle_path: str,
         aero_component: ['AeroComponent'],
         alpha_grid_size: int = 150,
         beta_grid_size: int = 100,
         operating_velocity: float = 50.0,
-        compute_damping: bool = True):
+        compute_damping: bool = True
+    ):
+        """
+        Initialize the BuildupManager object
+        :param name: Name of the component
+        :param vehicle_path: Path to the vehicle file buildup
+        :param aero_component: AeroComponent object
+        :param alpha_grid_size: Grid size for angle of attack
+        :param beta_grid_size: Grid size for angle of sideslip
+        :param operating_velocity: Operating velocity
+        :param compute_damping: Whether to compute damping
+        """
 
         self.name = name
         self.vehicle_path = vehicle_path
@@ -95,6 +113,7 @@ class BuildupManager:
             CL, CY, CD, Cl, Cm, Cn = [coeffs[i] for i in range(6)]
 
         else:
+            # Use NumPy-specific functions and methods
             def vertcat_func(*args):
                 return np.array(args)
             convert_axes = self._convert_axes_np
@@ -195,7 +214,9 @@ class BuildupManager:
         )
 
     def _pre_process_damping_data(self):
-        """Pre-processes damping data for NumPy interpolation."""
+        """
+        Pre-processes damping data for NumPy interpolation
+        """
         self.stacked_coeffs_data_damping = np.column_stack([
             self.asb_data_damping["Clp"],
             self.asb_data_damping["Cmq"],
