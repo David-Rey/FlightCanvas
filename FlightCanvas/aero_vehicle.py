@@ -177,55 +177,55 @@ class AeroVehicle:
                 # Update the component's transformation matrix with the new rotation.
                 component.update_transform(rotation=rotation_command)
 
-    def test_new_buildup(self):
-        """
-        Compares the numerical output of the NumPy and CasADi lookup functions
-        for a given operating point to ensure they are consistent.
-        """
-        comp = self.components[3]
-        alpha_deg = 10.0
-        beta_deg = 1.0
-        speed = 100.0
-
-        alpha_rad = np.deg2rad(alpha_deg)
-        beta_rad = np.deg2rad(beta_deg)
-
-        print(f"\n--- Comparing Buildup Manager for '{comp.name}' ---")
-        print(f"Test Point: alpha={alpha_deg:.2f} deg, beta={beta_deg:.2f} deg, speed={speed:.2f} m/s")
-
-        # --- 1. NumPy Calculation ---
-        # The type-aware function will automatically call the NumPy version
-        F_b_numpy, M_b_numpy = comp.buildup_manager.get_forces_and_moments(alpha_rad, beta_rad, speed)
-        print("\n--- NumPy Result ---")
-        print(f"Forces: {F_b_numpy}")
-        print(f"Moments: {M_b_numpy}")
-
-        # --- 2. CasADi Calculation ---
-        # Create symbolic variables as placeholders
-        alpha_sym = ca.MX.sym('alpha')
-        beta_sym = ca.MX.sym('beta')
-        speed_sym = ca.MX.sym('speed')
-
-        # Get the symbolic output expressions by calling the type-aware function with symbols
-        F_b_sym, M_b_sym = comp.buildup_manager.get_forces_and_moments(alpha_sym, beta_sym, speed_sym)
-
-        # Create a callable CasADi Function from the symbolic graph
-        evaluate_casadi_lookup = ca.Function(
-            'evaluate_casadi',
-            [alpha_sym, beta_sym, speed_sym],
-            [F_b_sym, M_b_sym]
-        )
-
-        # Call the CasADi function with the numerical inputs
-        F_b_casadi_dm, M_b_casadi_dm = evaluate_casadi_lookup(alpha_rad, beta_rad, speed)
-
-        # Convert CasADi's matrix type to NumPy arrays for comparison
-        F_b_casadi = F_b_casadi_dm.full().flatten()
-        M_b_casadi = M_b_casadi_dm.full().flatten()
-
-        print("\n--- CasADi Result ---")
-        print(f"Forces: {F_b_casadi}")
-        print(f"Moments: {M_b_casadi}")
+    #def test_new_buildup(self):
+    #    """
+    #    Compares the numerical output of the NumPy and CasADi lookup functions
+    #    for a given operating point to ensure they are consistent.
+    #    """
+    #    comp = self.components[3]
+    #    alpha_deg = 10.0
+    #    beta_deg = 1.0
+    #    speed = 100.0
+#
+    #    alpha_rad = np.deg2rad(alpha_deg)
+    #    beta_rad = np.deg2rad(beta_deg)
+#
+    #    print(f"\n--- Comparing Buildup Manager for '{comp.name}' ---")
+    #    print(f"Test Point: alpha={alpha_deg:.2f} deg, beta={beta_deg:.2f} deg, speed={speed:.2f} m/s")
+#
+    #    # --- 1. NumPy Calculation ---
+    #    # The type-aware function will automatically call the NumPy version
+    #    F_b_numpy, M_b_numpy = comp.buildup_manager.get_forces_and_moments(alpha_rad, beta_rad, speed)
+    #    print("\n--- NumPy Result ---")
+    #    print(f"Forces: {F_b_numpy}")
+    #    print(f"Moments: {M_b_numpy}")
+#
+    #    # --- 2. CasADi Calculation ---
+    #    # Create symbolic variables as placeholders
+    #    alpha_sym = ca.MX.sym('alpha')
+    #    beta_sym = ca.MX.sym('beta')
+    #    speed_sym = ca.MX.sym('speed')
+#
+    #    # Get the symbolic output expressions by calling the type-aware function with symbols
+    #    F_b_sym, M_b_sym = comp.buildup_manager.get_forces_and_moments(alpha_sym, beta_sym, speed_sym)
+#
+    #    # Create a callable CasADi Function from the symbolic graph
+    #    evaluate_casadi_lookup = ca.Function(
+    #        'evaluate_casadi',
+    #        [alpha_sym, beta_sym, speed_sym],
+    #        [F_b_sym, M_b_sym]
+    #    )
+#
+    #    # Call the CasADi function with the numerical inputs
+    #    F_b_casadi_dm, M_b_casadi_dm = evaluate_casadi_lookup(alpha_rad, beta_rad, speed)
+#
+    #    # Convert CasADi's matrix type to NumPy arrays for comparison
+    #    F_b_casadi = F_b_casadi_dm.full().flatten()
+    #    M_b_casadi = M_b_casadi_dm.full().flatten()
+#
+    #    print("\n--- CasADi Result ---")
+    #    print(f"Forces: {F_b_casadi}")
+    #    print(f"Moments: {M_b_casadi}")
 
     def run_sim(
         self,

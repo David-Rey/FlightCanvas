@@ -140,16 +140,20 @@ class AeroComponent(ABC):
         # get velocity of the body
         v_B = C_B_I @ vel
 
-        # get rotation matrix from transform matrix
-        #T = to_type(self.static_transform_matrix)
-        T = self.get_transform(true_deflection)
+        # get transform matrix
+        T = to_type(self.get_transform(true_deflection))
+
+        # get rotation matrix from body frame to component frame
         R = T[:3, :3]
 
-        # get reference point to either numpy or casadi
-        xyz_ref_typed = to_type(self.xyz_ref)
+        # compute distance from component to vehicle center of mass in the body frame
+        lever_arm = to_type(self.parent.xyz_ref - self.xyz_ref)
 
         # get local velocity of the component
-        v_comp = R @ v_B - lib.cross(angular_rate, xyz_ref_typed)
+        v_comp = R @ (v_B + lib.cross(angular_rate, lever_arm))
+
+        # get local angular rate
+        local_angular_rate = R @ angular_rate
 
         # get airspeed of component
         speed = norm(v_comp)
@@ -159,19 +163,16 @@ class AeroComponent(ABC):
 
         # if component is main then use buildup manager, else use symmetric component buildup manager
         if self.is_prime:
-            F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, speed)
+            F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, speed, *local_angular_rate)
         else:
             # if the component is reflected around xz plane then use get_forces_and_moment_xz_plane function
             if self.symmetry_type == 'xz-plane':
-                F_b, M_b = self.get_forces_and_moment_xz_plane(alpha, beta, speed)
+                F_b, M_b = self.get_forces_and_moment_xz_plane(alpha, beta, speed, local_angular_rate)
             # if the component is rotated around x-axis then use get_forces_and_moment_x_axial function
             elif self.symmetry_type == 'x-radial':
-                F_b, M_b = self.get_forces_and_moment_x_axial(v_comp)
+                F_b, M_b = self.get_forces_and_moment_x_axial(v_comp, angular_rate)
             else:
                 raise ValueError("self.symmetry_type needed to be either 'xz-plane' or 'x-radial'")
-
-        # compute distance from component to vehicle center of mass
-        lever_arm = to_type(self.parent.xyz_ref - self.xyz_ref)
 
         # compute moment arm
         M_b_cross = lib.cross(lever_arm, F_b)
@@ -184,7 +185,8 @@ class AeroComponent(ABC):
         self,
         alpha: Union[float, ca.MX],
         beta: Union[float, ca.MX],
-        speed: Union[float, ca.MX]
+        speed: Union[float, ca.MX],
+        angular_rate: Union[np.ndarray, ca.MX]
     ) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Returns the forces and moments reflected in the xz plane.
@@ -195,26 +197,49 @@ class AeroComponent(ABC):
         :return: Forces and moments (np.ndarray or ca.MX)
         """
         # Check if inputs are CasADi symbolic variables
-        F_b, M_b = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, -beta, speed)
-        if isinstance(alpha, ca.MX):
-            #F_b, M_b = self.symmetric_comp.buildup_manager.get_forces_and_moments_casadi(alpha, -beta, speed)
-            F_b = ca.vertcat(F_b[0], -F_b[1], F_b[2])
-            M_b = ca.vertcat(-M_b[0], M_b[1], -M_b[2])
-        else:
-            F_b[1] *= -1
-            M_b[0] *= -1
-            M_b[2] *= -1
+        is_casadi = isinstance(alpha, (ca.SX, ca.MX))
 
-        return F_b, M_b
+        if is_casadi:
+            # Define a function to construct a vertical vector
+            def vertcat_func(*args):
+                return ca.vertcat(*args)
+        else:
+            # Define the NumPy equivalent for constructing a vector
+            def vertcat_func(*args):
+                return np.array(args)
+
+        mirrored_beta = -beta
+
+        # The roll (p) and yaw (r) rates are inverted due to the reflection.
+        p, q, r = angular_rate[0], angular_rate[1], angular_rate[2]
+        mirrored_angular_rate = vertcat_func(-p, q, -r)
+
+        F_b, M_b = self.symmetric_comp.buildup_manager.get_forces_and_moments(
+            alpha,
+            mirrored_beta,
+            speed,
+            mirrored_angular_rate[0],
+            mirrored_angular_rate[1],
+            mirrored_angular_rate[2]
+        )
+
+        F_b_mirrored = vertcat_func(F_b[0], -F_b[1], F_b[2])
+
+        # The rolling moment (l) and yawing moment (n) are inverted.
+        M_b_mirrored = vertcat_func(-M_b[0], M_b[1], -M_b[2])
+
+        return F_b_mirrored, M_b_mirrored
 
     def get_forces_and_moment_x_axial(
-        self, v_comp: Union[np.ndarray, ca.MX]
+        self,
+        v_comp: Union[np.ndarray, ca.MX],
+        angular_rate: Union[np.ndarray, ca.MX]
     ) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Returns the forces and moments rotated from the component's local frame
         to the body frame. Switches between NumPy and CasADi based on input type.
-
         :param v_comp: Velocity of the component (np.ndarray or ca.MX)
+        :param angular_rate: Angular rate of the component (np.ndarray or ca.MX)
         :return: Forces and moments (np.ndarray or ca.MX)
         """
         # Set up library-specific functions and variables
@@ -229,10 +254,12 @@ class AeroComponent(ABC):
         R_Comp_Body = T[:3, :3]
         R_Body_Comp = R_Comp_Body.T
 
+        angular_rate_local = R_Comp_Body @ angular_rate
+
         alpha, beta = get_rel_alpha_beta(v_comp)
         speed = norm_func(v_comp)
 
-        F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, beta, speed)
+        F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, beta, speed, *angular_rate_local)
 
         # Matrix multiplication works for both NumPy and CasADi
         F_b = R_Body_Comp @ F_b_local
@@ -261,7 +288,7 @@ class AeroComponent(ABC):
         Saves aerodynamic coefficient from the buildup data
         """
         if self.is_prime:
-            if self.buildup_manager.asb_data is None:
+            if self.buildup_manager.asb_data_static is None:
                 self.compute_buildup()
             self.buildup_manager.save_buildup()
 
@@ -270,7 +297,7 @@ class AeroComponent(ABC):
         Saves a contour plot of a specified aerodynamic coefficient from the buildup data
         """
         if self.is_prime:
-            if self.buildup_manager.asb_data is None:
+            if self.buildup_manager.asb_data_static is None:
                 self.compute_buildup()
             self.buildup_manager.save_buildup_figs()
 

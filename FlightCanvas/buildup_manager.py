@@ -17,19 +17,15 @@ class BuildupManager:
     def __init__(self, name: str,
         vehicle_path: str,
         aero_component: ['AeroComponent'],
-        alpha_grid_size: int = 250,
-        beta_grid_size: int = 200,
+        alpha_grid_size: int = 150,
+        beta_grid_size: int = 100,
         operating_velocity: float = 50.0,
-        include_Fx: bool = True,
-        include_Fy: bool = True,
-        include_Fz: bool = True,
-        include_Mx: bool = True,
-        include_My: bool = True,
-        include_Mz: bool = True):
+        compute_damping: bool = True):
 
         self.name = name
         self.vehicle_path = vehicle_path
         self.aero_component = aero_component
+        self.compute_damping = compute_damping
 
         self.alpha_grid_size = alpha_grid_size
         self.beta_grid_size = beta_grid_size
@@ -48,19 +44,28 @@ class BuildupManager:
             beta=self.beta_grid.flatten()
         )
 
-        self.include_Fx = include_Fx
-        self.include_Fy = include_Fy
-        self.include_Fz = include_Fz
-        self.include_Mx = include_Mx
-        self.include_My = include_My
-        self.include_Mz = include_Mz
-        self.include_arr = np.array([include_Fx, include_Fy, include_Fz, include_Mx, include_My, include_Mz])
+        self.alpha_sweep_1D = np.linspace(-180, 180, self.alpha_grid_size)
+        self.op_point_1D_alpha_sweep = asb.OperatingPoint(
+            velocity=self.operating_velocity,
+            alpha=self.alpha_sweep_1D
+        )
 
-        self.asb_data = None  # To hold the aero build data
-        self.aero_interpolants = None  # To hold the CasADi interpolant object
-        self.stacked_coeffs_data = None  # To hold the pre-processed NumPy data
+        self.asb_data_static = None  # To hold the aero build data
+        self.asb_data_damping = None
+        self.static_interpolants = None  # To hold the CasADi interpolant object
+        self.damping_interpolant = None
+        self.stacked_coeffs_data_static = None  # To hold the pre-processed NumPy data
+        self.stacked_coeffs_data_damping = None
 
-    def get_forces_and_moments(self, alpha: Union[float, ca.MX], beta: Union[float, ca.MX], speed: Union[float, ca.MX]) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
+    def get_forces_and_moments(
+        self,
+        alpha: Union[float, ca.MX],
+        beta: Union[float, ca.MX],
+        speed: Union[float, ca.MX],
+        p: Union[float, ca.MX],
+        q: Union[float, ca.MX],
+        r: Union[float, ca.MX]
+    ) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Computes forces and moments. This function is type-aware and will use
         either NumPy or CasADi based on the input type.
@@ -68,19 +73,16 @@ class BuildupManager:
         is_casadi = isinstance(speed, (ca.SX, ca.MX))
 
         if is_casadi:
-            return self._get_forces_and_moments_ca(alpha, beta, speed)
+            return self._get_forces_and_moments_ca(alpha, beta, speed, p, q, r)
         else:
-            return self._get_forces_and_moments_np(alpha, beta, speed)
+            return self._get_forces_and_moments_np(alpha, beta, speed, p, q, r)
 
-
-
-
-    def _get_forces_and_moments_np(self, alpha: float, beta: float, speed: float) -> Tuple[np.ndarray, np.ndarray]:
+    def _get_forces_and_moments_np(self, alpha: float, beta: float, speed: float, p: float, q: float, r: float) -> Tuple[np.ndarray, np.ndarray]:
         """
         TODO
         """
-        if self.stacked_coeffs_data is None:
-            self._pre_process_data()
+        if self.stacked_coeffs_data_static is None:
+            self._pre_process_static_data()
 
         # Get the alpha and beta axes from the pre-computed grid (in radians)
         alpha_lin_rad = np.deg2rad(self.alpha_grid[:, 0])
@@ -88,7 +90,7 @@ class BuildupManager:
 
         # Perform a single, fast interpolation on the pre-stacked data
         interpolated_coeffs = utils.linear_interpolation(
-            alpha_lin_rad, beta_lin_rad, alpha, beta, self.stacked_coeffs_data
+            alpha_lin_rad, beta_lin_rad, alpha, beta, self.stacked_coeffs_data_static
         )
 
         # Unpack the results.
@@ -113,29 +115,64 @@ class BuildupManager:
         M_b = np.array([l_b, m_b, n_b])
         F_b = self._convert_axes_np(alpha, beta, F_w)
 
-        return F_b, M_b
+        M_b_d = np.zeros(3)
 
-    def _pre_process_data(self):
+        # Damping Moment Calculation ---
+        if self.asb_data_damping is not None and self.compute_damping:
+            if self.stacked_coeffs_data_damping is None:
+                self._pre_process_damping_data()
+
+            # 1D lookup for damping derivatives
+            alpha_sweep_rad = np.deg2rad(self.alpha_sweep_1D)
+            damping_coeffs = utils.linear_interpolation_1d(
+                alpha_sweep_rad, alpha, self.stacked_coeffs_data_damping
+            )
+            Clp, Cmq, Cnr = damping_coeffs
+
+            # Non-dimensionalization factor for rates
+            # Use a small epsilon to avoid division by zero at speed=0
+            V_inv = 1 / (speed + 1e-9)
+            p_hat = p * b * 0.5 * V_inv
+            q_hat = q * c * 0.5 * V_inv
+            r_hat = r * b * 0.5 * V_inv
+
+            # Add damping moments
+            M_b_d[0] = Clp * qS * b * p_hat
+            M_b_d[1] = Cmq * qS * c * q_hat
+            M_b_d[2] = Cnr * qS * b * r_hat
+
+        M_b_total = M_b + M_b_d
+        return F_b, M_b_total
+
+    def _pre_process_static_data(self):
         """
         Reshapes and stacks the raw coefficient data into a single 3D NumPy array
         for efficient interpolation. This should only be called once.
         """
-        if self.asb_data is None:
+        if self.asb_data_static is None:
             raise RuntimeError("Aero data not available. Run compute_buildup() or load_buildup() first.")
 
         # Reshape each coefficient's data into a 2D grid
-        CL_data = np.column_stack(self.asb_data["CL"]).reshape(self.alpha_grid.shape)
-        CY_data = np.column_stack(self.asb_data["CY"]).reshape(self.alpha_grid.shape)
-        CD_data = np.column_stack(self.asb_data["CD"]).reshape(self.alpha_grid.shape)
-        Cl_data = np.column_stack(self.asb_data["Cl"]).reshape(self.alpha_grid.shape)
-        Cm_data = np.column_stack(self.asb_data["Cm"]).reshape(self.alpha_grid.shape)
-        Cn_data = np.column_stack(self.asb_data["Cn"]).reshape(self.alpha_grid.shape)
+        CL_data = np.column_stack(self.asb_data_static["CL"]).reshape(self.alpha_grid.shape)
+        CY_data = np.column_stack(self.asb_data_static["CY"]).reshape(self.alpha_grid.shape)
+        CD_data = np.column_stack(self.asb_data_static["CD"]).reshape(self.alpha_grid.shape)
+        Cl_data = np.column_stack(self.asb_data_static["Cl"]).reshape(self.alpha_grid.shape)
+        Cm_data = np.column_stack(self.asb_data_static["Cm"]).reshape(self.alpha_grid.shape)
+        Cn_data = np.column_stack(self.asb_data_static["Cn"]).reshape(self.alpha_grid.shape)
 
         # Stack the 2D grids into a single 3D data array and store it
-        self.stacked_coeffs_data = np.stack(
+        self.stacked_coeffs_data_static = np.stack(
             [CL_data, CY_data, CD_data, Cl_data, Cm_data, Cn_data],
             axis=-1
         )
+
+    def _pre_process_damping_data(self):
+        """Pre-processes damping data for NumPy interpolation."""
+        self.stacked_coeffs_data_damping = np.column_stack([
+            self.asb_data_damping["Clp"],
+            self.asb_data_damping["Cmq"],
+            self.asb_data_damping["Cnr"]
+        ])
 
     @staticmethod
     def _convert_axes_np(alpha: float, beta: float, F_w: np.ndarray) -> np.ndarray:
@@ -183,22 +220,22 @@ class BuildupManager:
         Private helper method to create and cache the CasADi interpolant objects.
         This is a one-time setup operation.
         """
-        if self.stacked_coeffs_data is None:
-            self._pre_process_data()
+        if self.stacked_coeffs_data_static is None:
+            self._pre_process_static_data()
 
         # Get grid points in radians
         alpha_lin_rad = np.deg2rad(self.alpha_grid[:, 0])
         beta_lin_rad = np.deg2rad(self.beta_grid[0, :])
         grid_axes = [alpha_lin_rad, beta_lin_rad]
 
-        coeffs_data_grid_transposed = np.transpose(self.stacked_coeffs_data, axes=(1, 0, 2))
+        coeffs_data_grid_transposed = np.transpose(self.stacked_coeffs_data_static, axes=(1, 0, 2))
 
         # Flatten the pre-stacked data for the interpolant.
         coeffs_data_flat = coeffs_data_grid_transposed.ravel(order='C')
 
         # Create a single interpolant for all 6 coefficients
         sanitized_name = self.name.replace(" ", "_")
-        self.aero_interpolant = ca.interpolant(
+        self.static_interpolant = ca.interpolant(
             f'{sanitized_name}_CoeffsLookup',
             'linear',
             grid_axes,
@@ -209,15 +246,15 @@ class BuildupManager:
         """
         Computes aerodynamic forces and moments using pre-computed CasADi interpolants.
         """
-        if self.asb_data is None:
+        if self.asb_data_static is None:
             raise RuntimeError("Aero data not available. Run compute_buildup() or load_buildup() first.")
 
-        if self.aero_interpolants is None:
+        if self.static_interpolant is None:
             self._create_aero_interpolants()
 
         # Perform Symbolic Lookup
         interp_input = ca.vcat([alpha, beta])
-        interpolated_coeffs_flat = self.aero_interpolant(interp_input)
+        interpolated_coeffs_flat = self.static_interpolant(interp_input)
         interpolated_coeffs = ca.reshape(interpolated_coeffs_flat, 6, 1)
 
         # Unpack the results
@@ -252,10 +289,16 @@ class BuildupManager:
         """
 
         # Run the AeroBuildup analysis
-        self.asb_data = asb.AeroBuildup(
+        self.asb_data_static = asb.AeroBuildup(
             airplane=self.aero_component.asb_airplane,
             op_point=self.op_point
         ).run()
+
+        if self.compute_damping:
+            self.asb_data_damping = asb.AeroBuildup(
+                airplane=self.aero_component.asb_airplane,
+                op_point=self.op_point_1D_alpha_sweep
+            ).run_with_stability_derivatives(p=True, q=True, r=True)
 
     def save_buildup(self):
 
@@ -265,7 +308,8 @@ class BuildupManager:
             'alpha_grid_size': self.alpha_grid_size,
             'beta_grid_size': self.beta_grid_size,
             'operating_velocity': self.operating_velocity,
-            'asb_data': self.asb_data,
+            'asb_data_static': self.asb_data_static,
+            'asb_data_damping': self.asb_data_damping,
         }
 
         folder_path = os.path.join(self.vehicle_path, 'aero_data')
@@ -296,7 +340,8 @@ class BuildupManager:
         self.alpha_grid_size = loaded_data['alpha_grid_size']
         self.beta_grid_size = loaded_data['beta_grid_size']
         self.operating_velocity = loaded_data['operating_velocity']
-        self.asb_data = loaded_data['asb_data']
+        self.asb_data_static = loaded_data['asb_data_static']
+        self.asb_data_damping = loaded_data['asb_data_damping']
 
         self.beta_grid, self.alpha_grid = np.meshgrid(
             np.linspace(-90, 90, self.beta_grid_size),
@@ -320,7 +365,7 @@ class BuildupManager:
             self.draw_buildup_figs(ID, folder_path)
 
     def draw_buildup_figs(self, ID: str, folder_path: str):
-        data = self.asb_data[ID]
+        data = self.asb_data_static[ID]
         title = f"`{self.name}` {ID}"
         file_name = f"{self.name}_{ID}.png"
         full_path = os.path.join(folder_path, file_name)

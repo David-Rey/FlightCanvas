@@ -478,6 +478,46 @@ def linear_interpolation(alpha_grid, beta_grid, alpha, beta, data):
     return interpolated_values
 
 
+def linear_interpolation_1d(
+        x_axis: np.ndarray,
+        x_point: float,
+        y_data: np.ndarray
+) -> Union[float, np.ndarray]:
+    """
+    Performs 1D linear interpolation on a given dataset.
+    :param x_axis: A 1D NumPy array of the independent variable's grid points.
+                   This array MUST be sorted in ascending order.
+    :param x_point: The specific point at which to interpolate.
+    :param y_data: A NumPy array of the dependent variable's values. Its length
+                   along the interpolation axis must match the length of x_axis.
+    :return: The interpolated value or array of values.
+    """
+    idx = np.searchsorted(x_axis, x_point)
+
+    # If the point is before the first data point, return the first value.
+    if idx == 0:
+        return y_data[0]
+
+    # If the point is after the last data point, return the last value.
+    if idx == len(x_axis):
+        return y_data[-1]
+
+    # Get the bracketing points for x
+    x1 = x_axis[idx - 1]
+    x2 = x_axis[idx]
+
+    # Get the corresponding bracketing points for y.
+    y1 = y_data[idx - 1]
+    y2 = y_data[idx]
+
+    # Calculate the interpolation fraction (or weight).
+    fraction = (x_point - x1) / ((x2 - x1) + 1e-9)
+
+    # Calculate the interpolated y value using a weighted average.
+    y_interp = (1 - fraction) * y1 + fraction * y2
+
+    return y_interp
+
 def omega(w):
     return np.array([
         [0, -w[0], -w[1], -w[2]],

@@ -71,7 +71,7 @@ def model_body(height: float, diameter: float) -> AeroFuselage:
     end_cord = np.array([[height, nosecone_coords[-1, 1]], [height, 0]])
     nosecone_coords = np.vstack((nosecone_coords, end_cord))
 
-    k = 20  # remove me (for testing)
+    k = 19.5  # remove me (for testing)
 
     fuselage_xsecs = [asb.FuselageXSec(
         xyz_c=[x - k, 0, 0],  # Place the sections based on the nosecone coordinates
@@ -181,7 +181,7 @@ if __name__ == '__main__':
 
     aero_vehicle = AeroVehicle(
         name="Starship",
-        xyz_ref=[20, 0, 0],  # Vehicle's Center of Gravity
+        xyz_ref=[19.5, 0, 0],  # Vehicle's Center of Gravity
         components=all_components,
     )
     aero_vehicle.set_control_mapping(control_mapping)
@@ -203,20 +203,25 @@ if __name__ == '__main__':
 
     # Add Open Look Control
     controls = OpenLoopControl(num_inputs=4)
-    controls.add_step(u_indices=[0, 1], start_time=3, value=np.deg2rad(45))
-    controls.add_step(u_indices=[0, 1], start_time=8, value=-np.deg2rad(45))
-    controls.add_step(u_indices=[2, 3], start_time=12, value=np.deg2rad(20))
-    controls.add_step(u_indices=[2, 3], start_time=15, value=-np.deg2rad(20))
+    controls.add_step(u_indices=[0, 1], start_time=0, value=np.deg2rad(35))
+    controls.add_step(u_indices=[2, 3], start_time=0, value=np.deg2rad(15))
+
+    controls.add_step(u_indices=[0, 1], start_time=10, value=-np.deg2rad(15))
+    controls.add_step(u_indices=[2], start_time=15, value=-np.deg2rad(15))
+    #controls.add_step(u_indices=[0, 1], start_time=3, value=np.deg2rad(30))
+    #controls.add_step(u_indices=[0, 1], start_time=5, value=np.deg2rad(30))
+    #controls.add_step(u_indices=[2, 3], start_time=12, value=np.deg2rad(20))
+    #controls.add_step(u_indices=[2, 3], start_time=15, value=-np.deg2rad(20))
 
     #controls.add_step(u_indices=[0], start_time=6, value=-np.deg2rad(30))
-    #controls.add_step(u_indices=[1], start_time=10, value=-np.deg2rad(30))
+    #controls.add_step(u_indices=[1], start_time=6, value=-np.deg2rad(30))
 
     if animate:
         pos_0 = np.array([0, 0, 1000])  # Initial position
-        vel_0 = np.array([0, 0, -30])  # Initial velocity
+        vel_0 = np.array([0, 0, 0])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
-        tf = 20
+        tf = 30
 
         t_arr, x_arr, u_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf,
                             casadi=False, open_loop_control=controls, gravity=True)
