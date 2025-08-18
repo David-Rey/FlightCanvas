@@ -67,6 +67,121 @@ class BuildupManager:
         r: Union[float, ca.MX]
     ) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
+        Calculates aerodynamic forces and moments using either NumPy or CasADi.
+        :param alpha: Angle of attack (rad)
+        :param beta: Sideslip angle (rad)
+        :param speed: Airspeed (m/s)
+        :param p: Body-axis roll rate (rad/s)
+        :param q: Body-axis pitch rate (rad/s)
+        :param r: Body-axis yaw rate (rad/s)
+        :return: A tuple containing the force and moment vectors in the body frame.
+        """
+        # 1. --- Type Detection and Library-Specific Setup ---
+        is_casadi = isinstance(speed, (ca.SX, ca.MX))
+
+        if is_casadi:
+            # Use CasADi-specific functions and methods
+            def vertcat_func(*args):
+                return ca.vertcat(*args)
+            convert_axes = self._convert_axes_ca
+
+            # Perform symbolic lookup for static coefficients
+            if self.static_interpolants is None:
+                self._create_static_interpolants()
+
+            interp_input = ca.vcat([alpha, beta])
+            coeffs_flat = self.static_interpolants(interp_input)
+            coeffs = ca.reshape(coeffs_flat, 6, 1)
+            CL, CY, CD, Cl, Cm, Cn = [coeffs[i] for i in range(6)]
+
+        else:
+            def vertcat_func(*args):
+                return np.array(args)
+            convert_axes = self._convert_axes_np
+
+            # Perform numerical interpolation for static coefficients
+            if self.stacked_coeffs_data_static is None:
+                self._pre_process_static_data()
+
+            alpha_lin_rad = np.deg2rad(self.alpha_grid[:, 0])
+            beta_lin_rad = np.deg2rad(self.beta_grid[0, :])
+
+            coeffs = utils.linear_interpolation(
+                alpha_lin_rad, beta_lin_rad, alpha, beta, self.stacked_coeffs_data_static
+            )
+            CL, CY, CD, Cl, Cm, Cn = coeffs
+
+        density = 1.225
+        dynamic_pressure = 0.5 * density * speed ** 2
+
+        # Get airplane dimensions
+        s = self.aero_component.asb_airplane.s_ref
+        c = self.aero_component.asb_airplane.c_ref
+        b = self.aero_component.asb_airplane.b_ref
+        qS = dynamic_pressure * s
+
+        L = -CL * qS  # Lift
+        Y = CY * qS  # Side Force
+        D = -CD * qS  # Drag
+
+        # Force in wind frame
+        F_w = vertcat_func(D, Y, L)
+
+        # Force in body frame
+        F_b = convert_axes(alpha, beta, F_w)
+
+        l_b = Cl * qS * b  # rolling moment
+        m_b = Cm * qS * c  # pitching moment
+        n_b = Cn * qS * b  # yawing moment
+        M_b_static = vertcat_func(l_b, m_b, n_b)
+
+        M_b_damping = ca.MX.zeros(3) if is_casadi else np.zeros(3)
+        # Damping Moment Calculation
+        if self.asb_data_damping is not None and self.compute_damping:
+            # Get damping coefficients using the appropriate method
+            if is_casadi:
+                if self.damping_interpolant is None:
+                    self._create_damping_interpolant()
+                damping_coeffs_flat = self.damping_interpolant(alpha)
+                damping_coeffs = ca.reshape(damping_coeffs_flat, 3, 1)
+                Clp, Cmq, Cnr = [damping_coeffs[i] for i in range(3)]
+            else:
+                if self.stacked_coeffs_data_damping is None:
+                    self._pre_process_damping_data()
+                alpha_sweep_rad = np.deg2rad(self.alpha_sweep_1D)
+                damping_coeffs = utils.linear_interpolation_1d(
+                    alpha_sweep_rad, alpha, self.stacked_coeffs_data_damping
+                )
+                Clp, Cmq, Cnr = damping_coeffs
+
+            # Non-dimensionalization factor for rates
+            # Use a small epsilon to avoid division by zero at speed=0
+            V_inv = 1 / (speed + 1e-9)  # Epsilon for stability at speed=0
+            p_hat = p * b * 0.5 * V_inv
+            q_hat = q * c * 0.5 * V_inv
+            r_hat = r * b * 0.5 * V_inv
+
+            # Calculate damping moments
+            M_b_damping_values = vertcat_func(
+                Clp * qS * b * p_hat,
+                Cmq * qS * c * q_hat,
+                Cnr * qS * b * r_hat
+            )
+            M_b_damping = M_b_damping_values
+
+        M_b_total = M_b_static + M_b_damping
+        return F_b, M_b_total
+
+    def get_forces_and_moments_old(
+        self,
+        alpha: Union[float, ca.MX],
+        beta: Union[float, ca.MX],
+        speed: Union[float, ca.MX],
+        p: Union[float, ca.MX],
+        q: Union[float, ca.MX],
+        r: Union[float, ca.MX]
+    ) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
+        """
         Computes forces and moments. This function is type-aware and will use
         either NumPy or CasADi based on the input type.
         """
@@ -175,8 +290,7 @@ class BuildupManager:
 
     def _create_static_interpolants(self):
         """
-        Private helper method to create and cache the CasADi interpolant objects.
-        This is a one-time setup operation.
+        Private helper method to create and cache the CasADi interpolant objects
         """
         if self.stacked_coeffs_data_static is None:
             self._pre_process_static_data()
@@ -219,9 +333,10 @@ class BuildupManager:
         CL, CY, CD, Cl, Cm, Cn = [interpolated_coeffs[i] for i in range(6)]
 
         # Perform Physics Calculation Symbolically
-        density = 1.225
+        density = 1.225  # hard code density for now
         dynamic_pressure = 0.5 * density * speed ** 2
 
+        # Get airplane dimensions
         s = self.aero_component.asb_airplane.s_ref
         c = self.aero_component.asb_airplane.c_ref
         b = self.aero_component.asb_airplane.b_ref
@@ -230,7 +345,11 @@ class BuildupManager:
         L = CL * qS  # Lift
         Y = CY * qS  # Side Force
         D = CD * qS  # Drag
+
+        # Force in wind frame
         F_w = ca.vertcat(-D, Y, -L)
+
+        # Force in body frame
         F_b = self._convert_axes_ca(alpha, beta, F_w)
 
         l_b = Cl * qS * b  # rolling moment
@@ -259,11 +378,9 @@ class BuildupManager:
         M_b_total = M_b_static + M_b_damping
         return F_b, M_b_total
 
-
-
     def _create_damping_interpolant(self):
         """
-        TODO double check
+        Private helper method to create and cache the CasADi interpolant for damping
         """
         if self.stacked_coeffs_data_damping is None:
             self._pre_process_damping_data()
@@ -281,12 +398,12 @@ class BuildupManager:
             grid_list,
             data_list
         )
+
     def compute_buildup(self):
         """
         Computes the aerodynamic buildup data for the component over a range
         of alpha and beta angles at a specified velocity
         """
-
         # Run the AeroBuildup analysis
         self.asb_data_static = asb.AeroBuildup(
             airplane=self.aero_component.asb_airplane,
@@ -300,7 +417,9 @@ class BuildupManager:
             ).run_with_stability_derivatives(p=True, q=True, r=True)
 
     def save_buildup(self):
-
+        """
+        Saves buildup data to buildup folder
+        """
         # Put variables in a dictionary for easy loading
         variables_to_save = {
             'name': self.name,
@@ -311,7 +430,7 @@ class BuildupManager:
             'asb_data_damping': self.asb_data_damping,
         }
 
-        folder_path = os.path.join(self.vehicle_path, 'aero_data')
+        folder_path = os.path.join(self.vehicle_path, 'buildup_data')
         path_object = pathlib.Path(folder_path)
         path_object.mkdir(parents=True, exist_ok=True)
         file_name = f"{self.name}.pkl"
@@ -322,7 +441,10 @@ class BuildupManager:
             pickle.dump(variables_to_save, file)
 
     def load_buildup(self):
-        folder_path = os.path.join(self.vehicle_path, 'aero_data')
+        """
+        Loads buildup data from buildup folder
+        """
+        folder_path = os.path.join(self.vehicle_path, 'buildup_data')
         file_name = f"{self.name}.pkl"
         full_path = os.path.join(folder_path, file_name)
 
@@ -354,19 +476,35 @@ class BuildupManager:
         """
         list_names = ["CL", "CY", "CD", "Cl", "Cm", "Cn"]
 
-        folder_path = os.path.join(self.vehicle_path, 'buildup', self.name)
+        filename_map = {
+            "CL": "CL",  # Lift coefficient
+            "CY": "CY",
+            "CD": "CD",
+            "Cl": "Cl_moment",  # Rolling moment coefficient
+            "Cm": "Cm",
+            "Cn": "Cn"
+        }
+
+        folder_path = os.path.join(self.vehicle_path, 'buildup_figs', self.name)
         path_object = pathlib.Path(folder_path)
         path_object.mkdir(parents=True, exist_ok=True)
 
         # ID is the identifier for the data to plot (e.g., "CL", "CD", "F_b")
         for ID in list_names:
-             # Data from the buildup
-            self.draw_buildup_figs(ID, folder_path)
+            file_id = filename_map.get(ID, ID)
+            # Data from the buildup
+            self.draw_buildup_figs(ID, file_id, folder_path)
 
-    def draw_buildup_figs(self, ID: str, folder_path: str):
+    def draw_buildup_figs(self, ID: str, file_id: str, folder_path: str):
+        """
+        Saves buildup figure which a function of angle of attack and sideslip for aerodynamic coefficient
+        :param ID: Name of the aerodynamic coefficient
+        :param file_id: Name of the buildup figure
+        :param folder_path: Path to the buildup figure
+        """
         data = self.asb_data_static[ID]
-        title = f"`{self.name}` {ID}"
-        file_name = f"{self.name}_{ID}.png"
+        title = f"`{self.name}` {file_id}"
+        file_name = f"{self.name}_{file_id}.png"
         full_path = os.path.join(folder_path, file_name)
 
         # Create the contour plot
@@ -396,6 +534,9 @@ class BuildupManager:
     def _convert_axes_np(alpha: float, beta: float, F_w: np.ndarray) -> np.ndarray:
         """
         Convert axis from wind to body
+        :param alpha: Angle of attack in radians
+        :param beta: Angle of sideslip in radians
+        :param F_w: Vector in the wind frame
         """
         ca = np.cos(alpha)
         sa = np.sin(alpha)
@@ -413,9 +554,12 @@ class BuildupManager:
         return F_b
 
     @staticmethod
-    def _convert_axes_ca(alpha, beta, F_w):
+    def _convert_axes_ca(alpha: ca.MX, beta: ca.MX, F_w: ca.MX) -> ca.MX:
         """
         Convert axis from wind to body
+        :param alpha: Angle of attack in radians
+        :param beta: Angle of sideslip in radians
+        :param F_w: Vector in the wind frame
         """
         ca_ = ca.cos(alpha)
         sa = ca.sin(alpha)
