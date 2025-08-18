@@ -6,3 +6,4 @@ numpy
 pyvista==0.44.2
 scipy==1.16.1
 imageio-ffmpeg
+imageio
