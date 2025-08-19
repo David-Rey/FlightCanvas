@@ -27,7 +27,7 @@ class BuildupManager:
         alpha_grid_size: int = 150,
         beta_grid_size: int = 100,
         operating_velocity: float = 50.0,
-        compute_damping: bool = True
+        compute_damping: bool = False
     ):
         """
         Initialize the BuildupManager object

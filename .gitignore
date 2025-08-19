@@ -1,6 +1,10 @@
 *.pyc
 *.idea
+*.json
 animation.mp4
 vehicle_saves
 tests/export
 acados_ocp.json
+c_generated_code
+examples/c_generated_code
+tests/c_generated_code

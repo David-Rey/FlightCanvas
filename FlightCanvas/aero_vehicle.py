@@ -1,13 +1,21 @@
 # aero_project/FlightCanvas/aero_vehicle.py
 
-from typing import List, Union, Tuple, Optional, Any
-import pyvista as pv
-import aerosandbox.numpy as np
-from FlightCanvas import utils
 import pathlib
-from scipy.integrate import solve_ivp
-import casadi as ca
+from typing import List, Tuple, Union
 
+import aerosandbox.numpy as np
+import casadi as ca
+import pyvista as pv
+from scipy.integrate import solve_ivp
+
+try:
+    from acados_template import AcadosModel, AcadosOcp, AcadosSim, AcadosSimSolver, AcadosOcpSolver
+except ImportError:
+    print("Warning: 'acados_template' not installed. Related functionality will be unavailable.")
+    AcadosModel, AcadosOcp, AcadosOcpSolver, AcadosSim, AcadosSimSolver = None, None, None, None, None
+
+# Local application imports
+from FlightCanvas import utils
 from FlightCanvas.components.aero_component import AeroComponent
 from FlightCanvas.open_loop_control import OpenLoopControl
 
@@ -38,6 +46,9 @@ class AeroVehicle:
         self.control_mapping = None
         self.allocation_matrix = None
         self.ca_u = None
+
+        self.acados_model = None
+        self.acados_path = '/home/david/Desktop/main/acados'  # NOTE: This will change from system to system
 
         self.vehicle_path = f'vehicle_saves/{self.name}'
 
@@ -268,6 +279,49 @@ class AeroVehicle:
 
         return solution['t'], solution['y'], u_values
 
+    def _create_acados_model(
+        self,
+        gravity: bool
+    ):
+        """
+        TODO
+        """
+
+        model = AcadosModel()
+        model.name = "test"
+
+        g = ca.MX([0, 0, -9.81]) if gravity else ca.MX([0, 0, 0])
+
+        # Define Symbolic State and Dynamics
+        pos_I = ca.MX.sym('pos_I', 3)
+        vel_I = ca.MX.sym('vel_I', 3)
+        quat = ca.MX.sym('quat', 4)
+        omega_B = ca.MX.sym('omega_B', 3)
+        state = ca.vertcat(pos_I, vel_I, quat, omega_B)
+        model.x = state
+        nx = state.shape[0]
+
+        cmd_deflections = np.zeros(len(self.components))
+
+        F_B, M_B = self.compute_forces_and_moments(state, cmd_deflections)
+        C_I_B = utils.dir_cosine_ca(quat).T
+        F_I = (C_I_B @ F_B) + self.mass * g
+        v_dot = F_I / self.mass
+
+        J_B = ca.MX(self.moi)
+        omega_dot = ca.inv(J_B) @ (M_B - ca.cross(omega_B, J_B @ omega_B))
+        quat_dot = 0.5 * (utils.omega_ca(omega_B) @ quat)
+        f_expl_expr = ca.vertcat(vel_I, v_dot, quat_dot, omega_dot)
+
+        xdot = ca.MX.sym('xdot', nx, 1)
+        model.xdot = xdot
+        f_impl_expr = f_expl_expr - xdot
+
+        model.f_expl_expr = f_expl_expr
+        model.f_impl_expr = f_impl_expr
+        self.acados_model = model
+
+
     def _run_sim_casadi(
         self,
         pos_0: np.ndarray,
@@ -281,45 +335,43 @@ class AeroVehicle:
         """
         Runs a 6DoF simulation using a fixed-step CasADi RK4 integrator.
         """
-        g = ca.MX([0, 0, -9.81]) if gravity else ca.MX([0, 0, 0])
 
-        # Define Symbolic State and Dynamics
-        pos_I = ca.MX.sym('pos_I', 3)
-        vel_I = ca.MX.sym('vel_I', 3)
-        quat = ca.MX.sym('quat', 4)
-        omega_B = ca.MX.sym('omega_B', 3)
-        state = ca.vertcat(pos_I, vel_I, quat, omega_B)
-        cmd_deflections = np.zeros(len(self.components))
+        if self.acados_model is None:
+            self._create_acados_model(gravity=gravity)
 
-        F_B, M_B = self.compute_forces_and_moments(state, cmd_deflections)
-        C_I_B = utils.dir_cosine_ca(quat).T
-        F_I = (C_I_B @ F_B) + self.mass * g
-        v_dot = F_I / self.mass
+        N_sim = int(tf / dt) + 1
 
-        J_B = ca.MX(self.moi)
-        omega_dot = ca.inv(J_B) @ (M_B - ca.cross(omega_B, J_B @ omega_B))
-        quat_dot = 0.5 * utils.omega_ca(omega_B) @ quat
-        f_expl_expr = ca.vertcat(vel_I, v_dot, quat_dot, omega_dot)
+        sim = AcadosSim(acados_path=self.acados_path)
 
-        # Create the Integrator
-        ode = {'x': state, 'ode': f_expl_expr}
-        integ_options = {'t0': 0, 'tf': dt, 'simplify': True, 'number_of_finite_elements': 4}
-        integrator = ca.integrator('integrator', 'rk', ode, integ_options)
+        sim.model = self.acados_model
+        sim.solver_options.T = dt
 
-        # Run the Simulation Loop
-        x0 = np.concatenate([pos_0, vel_0, quat_0, omega_0])
-        num_steps = int(tf / dt)
-        x_history = [x0]
-        current_x = x0
+        sim.solver_options.integrator_type = 'IRK'
+        sim.solver_options.num_stages = 3
+        sim.solver_options.num_steps = 3
+        sim.solver_options.collocation_type = "GAUSS_RADAU_IIA"
 
-        for _ in range(num_steps):
-            res = integrator(x0=current_x)
-            current_x = res['xf'].full().flatten()
-            current_x[6:10] /= np.linalg.norm(current_x[6:10])  # Normalize quaternion
-            x_history.append(current_x)
+        nx = sim.model.x.rows()
 
-        t_eval = np.linspace(0, tf, num_steps + 1)
-        return t_eval, np.array(x_history).T, np.empty(0)
+        acados_integrator = AcadosSimSolver(sim)
+
+        x0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
+
+        sim_x = np.zeros((N_sim + 1, nx))
+        sim_x[0, :] = x0
+        sim_t = np.zeros((N_sim + 1))
+
+        import time
+        start_time = time.perf_counter()
+        for i in range(N_sim):
+            sim_x[i + 1, :] = acados_integrator.simulate(x=sim_x[i, :])
+            sim_t[i + 1] = i * dt
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        print("Simulation finished.")
+        print(f"Total time for {N_sim} nodes: {elapsed_time:.4f} seconds.")
+
+        return sim_t, sim_x.T, np.empty(0)
 
     def init_buildup_manager(self):
         """
