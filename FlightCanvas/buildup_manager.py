@@ -244,7 +244,7 @@ class BuildupManager:
         sanitized_name = self.name.replace(" ", "_")
         self.static_interpolants = ca.interpolant(
             f'{sanitized_name}_CoeffsLookup',
-            'linear',
+            'bspline',
             grid_axes,
             coeffs_data_flat
         )

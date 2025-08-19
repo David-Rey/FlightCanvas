@@ -51,7 +51,7 @@ if __name__ == '__main__':
         tf = 10
 
         t_arr, x_arr, u_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf,
-                                            casadi=False, gravity=True)
+                                            casadi=True, gravity=True)
         #t_arr_2, x_arr_2 = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, gravity=True)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
         aero_vehicle.animate(t_arr, x_arr, u_arr, debug=False)

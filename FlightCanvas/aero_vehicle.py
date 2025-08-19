@@ -365,7 +365,7 @@ class AeroVehicle:
         start_time = time.perf_counter()
         for i in range(N_sim):
             sim_x[i + 1, :] = acados_integrator.simulate(x=sim_x[i, :])
-            sim_t[i + 1] = i * dt
+            sim_t[i + 1] = (i + 1) * dt
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
         print("Simulation finished.")

@@ -249,9 +249,13 @@ class AeroComponent(ABC):
         # Compute angle of attack and sideslip
         alpha, beta = self.get_rel_alpha_beta(v_comp)
 
+        # Extract angular rates (works in both numpy and casadi)
+        p = local_angular_rate[0]
+        q = local_angular_rate[1]
+        r = local_angular_rate[2]
+
         # Compute local forces and moments in the component frame
-        F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, beta, speed,
-                                                                                          *local_angular_rate)
+        F_b_local, M_b_local = self.symmetric_comp.buildup_manager.get_forces_and_moments(alpha, beta, speed, p, q, r)
 
         # Rotate forces and moments from component frame to body frame
         F_b = R_Body_Comp @ F_b_local
