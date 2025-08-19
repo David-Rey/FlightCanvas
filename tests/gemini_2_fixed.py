@@ -3,6 +3,10 @@ from acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
 from casadi import SX, vertcat, sin, cos, tan
 
 
+# Set the ACADOS_SOURCE_DIR environment variable
+# Use the correct path to your acados installation
+#os.environ['ACADOS_SOURCE_DIR'] = '/home/david/Desktop/main/acados'
+
 def create_rocket_model_variable_mass() -> AcadosModel:
     """
     Creates a 3DOF rocket model with variable mass.
