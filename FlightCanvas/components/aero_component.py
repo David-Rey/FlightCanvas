@@ -112,7 +112,7 @@ class AeroComponent(ABC):
         # Extract state information
         vel = state[3:6]
         quat = state[6:10]
-        angular_rate = state[10:]
+        angular_rate = state[10:13]
 
         # Compute direction cosine function
         C_B_I = dir_cosine_func(quat)

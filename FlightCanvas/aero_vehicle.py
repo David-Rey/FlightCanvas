@@ -132,13 +132,13 @@ class AeroVehicle:
     def compute_forces_and_moments(
         self,
         state: Union[np.ndarray, ca.MX],
-        cmd_deflections: Union[np.ndarray, ca.MX]) \
+        true_deflections: Union[np.ndarray, ca.MX]) \
     -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Computes the aerodynamic forces and moments on the vehicle. This function
         is type-aware and will use either NumPy or CasADi based on the input type.
         :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
-        :param cmd_deflections: The command deflection angle
+        :param true_deflections: The command deflection angle
         :return: The computed forces and moments
         """
         is_casadi = isinstance(state, (ca.SX, ca.MX))
@@ -153,8 +153,7 @@ class AeroVehicle:
         # For each component, look up the forces and moments based on its local flow conditions
         for i in range(len(self.components)):
             component = self.components[i]
-            cmd_deflection = cmd_deflections[i]
-            true_deflection = cmd_deflection  # TODO
+            true_deflection = true_deflections[i]
             F_b_comp, M_b_comp = component.get_forces_and_moments(state, true_deflection)
             F_b += F_b_comp
             M_b += M_b_comp
@@ -279,6 +278,52 @@ class AeroVehicle:
 
         return solution['t'], solution['y'], u_values
 
+    def _get_deflection_states(self) -> Tuple[ca.MX, ca.MX, ca.MX]:
+        """
+        TODO
+        """
+        nd = self.allocation_matrix.shape[0]
+        nu = self.allocation_matrix.shape[1]
+
+        deflections = ca.MX.zeros(nd)
+        deflections_dot = ca.MX.zeros(nd)
+
+        u = ca.MX.sym('u', nu)
+        cmd_deflections = self.allocation_matrix @ u
+
+        for i in range(len(self.components)):
+            component = self.components[i]
+            if component.actuator_model is not None:
+                deflection_state_size = component.actuator_model.state_size
+
+                # Sanitize the name for CasADi (replace spaces with underscores)
+                safe_name = component.name.replace(' ', '_')
+                true_deflection = ca.MX.sym(safe_name, deflection_state_size)
+                cmd_deflection = cmd_deflections[i]
+
+                # Append the new symbolic Functino to the list
+                deflection_derivative = component.actuator_model.get_casadi_expression(cmd_deflection, true_deflection)
+
+                deflections[i] = true_deflection
+                deflections_dot[i] = deflection_derivative
+
+                # Append the new symbolic variable to the list
+
+                #deflection_list.append(true_deflection)
+                #deflection_dot_list.append(deflection_derivative)
+
+
+        # After the loop, vertically stack all collected variables
+        #if deflection_list:  # Check if the list is not empty
+        #    deflections = ca.vertcat(*deflection_list)
+        #    deflections_dot = ca.vertcat(*deflection_dot_list)
+        #else:
+        #    deflections = ca.MX([])
+        #    deflections_dot = ca.MX([])
+
+        return deflections, deflections_dot, u
+
+
     def _create_acados_model(
         self,
         gravity: bool,
@@ -298,18 +343,25 @@ class AeroVehicle:
         vel_I = ca.MX.sym('vel_I', 3)
         quat = ca.MX.sym('quat', 4)
         omega_B = ca.MX.sym('omega_B', 3)
+        true_deflections, deflections_dot, u = self._get_deflection_states()
 
-        state = ca.vertcat(pos_I, vel_I, quat, omega_B)
+        state = ca.vertcat(pos_I, vel_I, quat, omega_B, true_deflections)
         model.x = state
+        model.u = u
         nx = state.shape[0]
 
-        cmd_deflections = np.zeros(len(self.components))
-        if open_loop_control is not None:
-            u = ca.MX.sym('u', open_loop_control.num_inputs)
-            cmd_deflections = self.allocation_matrix @ u
-            model.u = u
+        #true_deflections = np.zeros(len(self.components))
+        #if deflections.numel() > 0:
+        #    u = ca.MX.sym('u', self.allocation_matrix.shape[1])
+        #    true_deflections = self.allocation_matrix @ u
+        #    model.u = u
 
-        F_B, M_B = self.compute_forces_and_moments(state, cmd_deflections)
+        # if open_loop_control is not None:
+        #    u = ca.MX.sym('u', open_loop_control.num_inputs)
+        #    cmd_deflections = self.allocation_matrix @ u
+        #    model.u = u
+
+        F_B, M_B = self.compute_forces_and_moments(state, true_deflections)
         C_I_B = utils.dir_cosine_ca(quat).T
         F_I = (C_I_B @ F_B) + self.mass * g
         v_dot = F_I / self.mass
@@ -317,7 +369,7 @@ class AeroVehicle:
         J_B = ca.MX(self.moi)
         omega_dot = ca.inv(J_B) @ (M_B - ca.cross(omega_B, J_B @ omega_B))
         quat_dot = 0.5 * (utils.omega_ca(omega_B) @ quat)
-        f_expl_expr = ca.vertcat(vel_I, v_dot, quat_dot, omega_dot)
+        f_expl_expr = ca.vertcat(vel_I, v_dot, quat_dot, omega_dot, deflections_dot)
 
         xdot = ca.MX.sym('xdot', nx, 1)
         model.xdot = xdot
@@ -359,6 +411,7 @@ class AeroVehicle:
         sim.solver_options.collocation_type = "GAUSS_RADAU_IIA"
 
         nx = sim.model.x.rows()
+        nu = sim.model.u.rows()
 
         acados_integrator = AcadosSimSolver(sim)
 
@@ -366,6 +419,8 @@ class AeroVehicle:
 
         sim_x = np.zeros((N_sim + 1, nx))
         sim_x[0, :] = x0
+        sim_u = np.zeros((N_sim + 1, nu))
+        sim_u[0, :] = open_loop_control.get_u(0)
         sim_t = np.zeros((N_sim + 1))
 
         import time
@@ -373,17 +428,18 @@ class AeroVehicle:
         for i in range(N_sim):
             u_current = open_loop_control.get_u(sim_t[i])
             sim_x[i + 1, :] = acados_integrator.simulate(x=sim_x[i, :], u=u_current)
+            sim_u[i + 1, :] = u_current
             sim_t[i + 1] = (i + 1) * dt
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
         print("Simulation finished.")
         print(f"Total time for {N_sim} nodes: {elapsed_time:.4f} seconds.")
 
-        u_values = np.empty(0)
-        if open_loop_control is not None:
-            u_values = np.array([open_loop_control.get_u(t) for t in sim_t]).T
+        #u_values = np.empty(0)
+        #if open_loop_control is not None:
+        #    u_values = np.array([open_loop_control.get_u(t) for t in sim_t]).T
 
-        return sim_t, sim_x.T, u_values
+        return sim_t, sim_x.T, sim_u.T
 
     def init_buildup_manager(self):
         """

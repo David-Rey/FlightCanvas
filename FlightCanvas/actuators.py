@@ -33,7 +33,7 @@ class ActuatorModel(ABC):
         pass
 
     @abstractmethod
-    def get_casadi_expression(self, u: ca.MX) -> ca.Function:
+    def get_casadi_expression(self, cmd_delta: ca.MX, true_delta: ca.MX) -> ca.MX:
         """
         Creates a CasADi symbolic function for the actuator dynamics.
         :return: A CasADi function representing the actuator's dynamics  # delta_state: ca.MX,
@@ -57,14 +57,16 @@ class FirstOrderDeflection(ActuatorModel):
         deflection_dot = (command - deflection) / self.tau
         return np.array([deflection_dot])
 
-    def get_casadi_expression(self,  u: ca.MX) -> ca.Function:
+    def get_casadi_expression(self, cmd_delta: ca.MX, true_delta: ca.MX) -> ca.MX:
         """
         Creates a CasADi symbolic function for the actuator dynamics
-        :param u: The control input command
+        :param cmd_delta: The control input command
+        :param true_delta: The true deflection output
         :return: The derivative of the state vector of the actuator
         """
-        x_dot = (u - self.deflection_state[0]) / self.tau
-        return ca.Function('first_order_deflection_actuator', [self.deflection_state, u], [x_dot])
+        x_dot = (cmd_delta - true_delta) / self.tau
+        return x_dot  # TODO check if this breaks stuff
+        #return ca.Function('first_order_deflection_actuator', [self.deflection_state, u], [x_dot])
 
 
 if __name__ == "__main__":

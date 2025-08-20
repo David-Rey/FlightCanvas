@@ -224,7 +224,7 @@ if __name__ == '__main__':
         tf = 30
 
         t_arr, x_arr, u_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf,
-                            casadi=False, open_loop_control=controls, gravity=True)
+                            casadi=True, open_loop_control=controls, gravity=True)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
         aero_vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
     else:
