@@ -217,7 +217,7 @@ class AeroVehicle:
         """
         if casadi:
             # Call the CasADi-specific simulation function
-            return self._run_sim_casadi(pos_0, vel_0, quat_0, omega_0, tf, dt, gravity)
+            return self._run_sim_casadi(pos_0, vel_0, quat_0, omega_0, tf, dt, gravity, open_loop_control)
         else:
             # Call the SciPy/NumPy-specific simulation function
             return self._run_sim_scipy(pos_0, vel_0, quat_0, omega_0, tf, dt, gravity, print_debug, open_loop_control)
@@ -281,7 +281,8 @@ class AeroVehicle:
 
     def _create_acados_model(
         self,
-        gravity: bool
+        gravity: bool,
+        open_loop_control: OpenLoopControl
     ):
         """
         TODO
@@ -297,11 +298,16 @@ class AeroVehicle:
         vel_I = ca.MX.sym('vel_I', 3)
         quat = ca.MX.sym('quat', 4)
         omega_B = ca.MX.sym('omega_B', 3)
+
         state = ca.vertcat(pos_I, vel_I, quat, omega_B)
         model.x = state
         nx = state.shape[0]
 
         cmd_deflections = np.zeros(len(self.components))
+        if open_loop_control is not None:
+            u = ca.MX.sym('u', open_loop_control.num_inputs)
+            cmd_deflections = self.allocation_matrix @ u
+            model.u = u
 
         F_B, M_B = self.compute_forces_and_moments(state, cmd_deflections)
         C_I_B = utils.dir_cosine_ca(quat).T
@@ -330,14 +336,15 @@ class AeroVehicle:
         omega_0: np.ndarray,
         tf: float,
         dt: float,
-        gravity: bool
+        gravity: bool,
+        open_loop_control: OpenLoopControl
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Runs a 6DoF simulation using a fixed-step CasADi RK4 integrator.
         """
 
         if self.acados_model is None:
-            self._create_acados_model(gravity=gravity)
+            self._create_acados_model(gravity, open_loop_control)
 
         N_sim = int(tf / dt) + 1
 
@@ -364,14 +371,19 @@ class AeroVehicle:
         import time
         start_time = time.perf_counter()
         for i in range(N_sim):
-            sim_x[i + 1, :] = acados_integrator.simulate(x=sim_x[i, :])
+            u_current = open_loop_control.get_u(sim_t[i])
+            sim_x[i + 1, :] = acados_integrator.simulate(x=sim_x[i, :], u=u_current)
             sim_t[i + 1] = (i + 1) * dt
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
         print("Simulation finished.")
         print(f"Total time for {N_sim} nodes: {elapsed_time:.4f} seconds.")
 
-        return sim_t, sim_x.T, np.empty(0)
+        u_values = np.empty(0)
+        if open_loop_control is not None:
+            u_values = np.array([open_loop_control.get_u(t) for t in sim_t]).T
+
+        return sim_t, sim_x.T, u_values
 
     def init_buildup_manager(self):
         """

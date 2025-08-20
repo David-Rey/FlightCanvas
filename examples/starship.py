@@ -194,7 +194,7 @@ if __name__ == '__main__':
     aero_vehicle.set_moi_diag([I_s, I_a, I_a])
 
     # DEBUG
-    animate = 0
+    animate = 1
 
     #aero_vehicle.compute_buildup()
     #aero_vehicle.save_buildup()
