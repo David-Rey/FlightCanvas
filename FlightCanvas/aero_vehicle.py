@@ -132,8 +132,9 @@ class AeroVehicle:
     def compute_forces_and_moments(
         self,
         state: Union[np.ndarray, ca.MX],
-        true_deflections: Union[np.ndarray, ca.MX]) \
-    -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
+        true_deflections: Union[np.ndarray, ca.MX],
+        index_of_deflection=None
+    ) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Computes the aerodynamic forces and moments on the vehicle. This function
         is type-aware and will use either NumPy or CasADi based on the input type.
@@ -153,7 +154,12 @@ class AeroVehicle:
         # For each component, look up the forces and moments based on its local flow conditions
         for i in range(len(self.components)):
             component = self.components[i]
-            true_deflection = true_deflections[i]
+
+            if index_of_deflection[i] is None:
+                true_deflection = 0
+            else:
+                true_deflection = true_deflections[index_of_deflection[i]]
+
             F_b_comp, M_b_comp = component.get_forces_and_moments(state, true_deflection)
             F_b += F_b_comp
             M_b += M_b_comp
@@ -278,34 +284,34 @@ class AeroVehicle:
 
         return solution['t'], solution['y'], u_values
 
-    def _get_deflection_states(self) -> Tuple[ca.MX, ca.MX, ca.MX]:
-        """
-        TODO
-        """
-        nd = self.allocation_matrix.shape[0]
-        nu = self.allocation_matrix.shape[1]
-
-        deflections = ca.MX.zeros(nd)
-        deflections_dot = ca.MX.zeros(nd)
-
-        u = ca.MX.sym('u', nu)
-        cmd_deflections = self.allocation_matrix @ u
-
-        for i in range(len(self.components)):
-            component = self.components[i]
-            if component.actuator_model is not None:
-                deflection_state_size = component.actuator_model.state_size
-
-                # Sanitize the name for CasADi (replace spaces with underscores)
-                safe_name = component.name.replace(' ', '_')
-                true_deflection = ca.MX.sym(safe_name, deflection_state_size)
-                cmd_deflection = cmd_deflections[i]
-
-                # Append the new symbolic Functino to the list
-                deflection_derivative = component.actuator_model.get_casadi_expression(cmd_deflection, true_deflection)
-
-                deflections[i] = true_deflection
-                deflections_dot[i] = deflection_derivative
+    #def _get_deflection_states(self) -> Tuple[ca.MX, ca.MX, ca.MX]:
+    #    """
+    #    TODO
+    #    """
+    #    nd = self.allocation_matrix.shape[0]
+    #    nu = self.allocation_matrix.shape[1]
+#
+    #    deflections = ca.MX.zeros(nd)
+    #    deflections_dot = ca.MX.zeros(nd)
+#
+    #    u = ca.MX.sym('u', nu)
+    #    cmd_deflections = self.allocation_matrix @ u
+#
+    #    for i in range(len(self.components)):
+    #        component = self.components[i]
+    #        if component.actuator_model is not None:
+    #            deflection_state_size = component.actuator_model.state_size
+#
+    #            # Sanitize the name for CasADi (replace spaces with underscores)
+    #            safe_name = component.name.replace(' ', '_')
+    #            true_deflection = ca.MX.sym(safe_name, deflection_state_size)
+    #            cmd_deflection = cmd_deflections[i]
+#
+    #            # Append the new symbolic Functino to the list
+    #            deflection_derivative = component.actuator_model.get_casadi_expression(cmd_deflection, true_deflection)
+#
+    #            deflections[i] = true_deflection
+    #            deflections_dot[i] = deflection_derivative
 
                 # Append the new symbolic variable to the list
 
@@ -321,13 +327,64 @@ class AeroVehicle:
         #    deflections = ca.MX([])
         #    deflections_dot = ca.MX([])
 
-        return deflections, deflections_dot, u
+        #return deflections, deflections_dot, u
+
+    def _get_deflection_states_2(self) -> Tuple[ca.MX, ca.MX, ca.MX, List[int]]:
+        """
+        Builds the symbolic state vectors for actuated deflections.
+        Returns: TODO
+        """
+        nu = self.allocation_matrix.shape[1]
+        nd = self.allocation_matrix.shape[0]
+
+        # --- Initialize empty lists for the dynamic states and their indices ---
+        deflection_states = []
+        deflection_dots = []
+        actuated_indices = [None] * nd
+
+        u = ca.MX.sym('u', nu)
+        cmd_deflections = self.allocation_matrix @ u
+
+        counter_idx = 0
+
+        # --- Single loop to build states, derivatives, and indices ---
+        for i, component in enumerate(self.components):
+            # Check if the component has an actuator model
+            if component.actuator_model is not None:
+                # --- Store the index of the actuated component ---
+                actuated_indices[i] = counter_idx
+
+                deflection_state_size = component.actuator_model.state_size
+
+                # Sanitize the name for CasADi
+                safe_name = component.name.replace(' ', '_')
+                true_deflection = ca.MX.sym(safe_name, deflection_state_size)
+
+                # Append the new symbolic state to the list
+                deflection_states.append(true_deflection)
+
+                # The commanded deflection for this specific component
+                cmd_deflection = cmd_deflections[i]
+
+                # Calculate the derivative and append it to the list
+                deflection_derivative = component.actuator_model.get_casadi_expression(cmd_deflection,
+                                                                                       true_deflection)
+                deflection_dots.append(deflection_derivative)
+
+                counter_idx = counter_idx + 1
+
+        # --- Vertically concatenate the lists into single CasADi vectors ---
+        # The '*' unpacks the lists into arguments for vertcat
+        final_deflections = ca.vertcat(*deflection_states)
+        final_deflections_dot = ca.vertcat(*deflection_dots)
+
+        # --- Return the vectors, the control input, and the new list of indices ---
+        return final_deflections, final_deflections_dot, u, actuated_indices
 
 
     def _create_acados_model(
         self,
-        gravity: bool,
-        open_loop_control: OpenLoopControl
+        gravity: bool
     ):
         """
         TODO
@@ -343,25 +400,14 @@ class AeroVehicle:
         vel_I = ca.MX.sym('vel_I', 3)
         quat = ca.MX.sym('quat', 4)
         omega_B = ca.MX.sym('omega_B', 3)
-        true_deflections, deflections_dot, u = self._get_deflection_states()
+        true_deflections, deflections_dot, u, idx = self._get_deflection_states_2()
 
         state = ca.vertcat(pos_I, vel_I, quat, omega_B, true_deflections)
         model.x = state
         model.u = u
         nx = state.shape[0]
 
-        #true_deflections = np.zeros(len(self.components))
-        #if deflections.numel() > 0:
-        #    u = ca.MX.sym('u', self.allocation_matrix.shape[1])
-        #    true_deflections = self.allocation_matrix @ u
-        #    model.u = u
-
-        # if open_loop_control is not None:
-        #    u = ca.MX.sym('u', open_loop_control.num_inputs)
-        #    cmd_deflections = self.allocation_matrix @ u
-        #    model.u = u
-
-        F_B, M_B = self.compute_forces_and_moments(state, true_deflections)
+        F_B, M_B = self.compute_forces_and_moments(state, true_deflections, idx)
         C_I_B = utils.dir_cosine_ca(quat).T
         F_I = (C_I_B @ F_B) + self.mass * g
         v_dot = F_I / self.mass
@@ -396,7 +442,7 @@ class AeroVehicle:
         """
 
         if self.acados_model is None:
-            self._create_acados_model(gravity, open_loop_control)
+            self._create_acados_model(gravity)
 
         N_sim = int(tf / dt) + 1
 
@@ -413,9 +459,11 @@ class AeroVehicle:
         nx = sim.model.x.rows()
         nu = sim.model.u.rows()
 
-        acados_integrator = AcadosSimSolver(sim)
+        nd = np.zeros(nx - 13)
 
-        x0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
+        x0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, nd))
+
+        acados_integrator = AcadosSimSolver(sim)
 
         sim_x = np.zeros((N_sim + 1, nx))
         sim_x[0, :] = x0
