@@ -52,6 +52,9 @@ class AeroVehicle:
 
         self.vehicle_path = f'vehicle_saves/{self.name}'
 
+        for i in range(len(self.components)):
+            self.components[i].update_id(i)
+
         [comp.set_parent(self) for comp in self.components]
 
         path_object = pathlib.Path(self.vehicle_path)
@@ -68,6 +71,7 @@ class AeroVehicle:
 
         # Update transformation matrices for all components
         self.update_transform()
+
 
     def update_transform(self):
         """
@@ -155,7 +159,7 @@ class AeroVehicle:
         for i in range(len(self.components)):
             component = self.components[i]
 
-            if index_of_deflection[i] is None:
+            if index_of_deflection is None:
                 true_deflection = 0
             else:
                 true_deflection = true_deflections[index_of_deflection[i]]
@@ -376,7 +380,7 @@ class AeroVehicle:
         # --- Vertically concatenate the lists into single CasADi vectors ---
         # The '*' unpacks the lists into arguments for vertcat
         final_deflections = ca.vertcat(*deflection_states)
-        final_deflections_dot = ca.vertcat(*deflection_dots)
+        final_deflections_dot = ca.simplify(ca.vertcat(*deflection_dots))
 
         # --- Return the vectors, the control input, and the new list of indices ---
         return final_deflections, final_deflections_dot, u, actuated_indices
@@ -482,10 +486,6 @@ class AeroVehicle:
         elapsed_time = end_time - start_time
         print("Simulation finished.")
         print(f"Total time for {N_sim} nodes: {elapsed_time:.4f} seconds.")
-
-        #u_values = np.empty(0)
-        #if open_loop_control is not None:
-        #    u_values = np.array([open_loop_control.get_u(t) for t in sim_t]).T
 
         return sim_t, sim_x.T, sim_u.T
 

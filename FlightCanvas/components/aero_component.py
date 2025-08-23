@@ -38,6 +38,7 @@ class AeroComponent(ABC):
         """
 
         self.name = name
+        self.id = None
         self.ref_direction = np.array(ref_direction)
         self.control_pivot = control_pivot
         self.is_prime = is_prime
@@ -70,6 +71,13 @@ class AeroComponent(ABC):
         self.ref_direction_actor = None
         self.control_pivot_actor = None
         self.force_actors = []
+
+    def update_id(self, new_id: int):
+        """
+        Updates the vehicle id
+        :param new_id: The new vehicle id (int)
+        """
+        self.id = new_id
 
     def set_parent(self, parent: 'AeroComponent'):
         """

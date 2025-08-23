@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List
+from typing import List, Optional
 from abc import ABC, abstractmethod
 import casadi as ca
 import matplotlib.pyplot as plt
@@ -40,6 +40,21 @@ class ActuatorModel(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_system_matrix(self) -> Optional[np.ndarray]:
+        """
+        Gets the system matrix (A matrix) for the actuator dynamics
+        :return: The system matrix with size, state_size x state_size
+        """
+        pass
+
+    def get_control_matrix(self) -> Optional[np.ndarray]:
+        """
+        Gets the control matrix (B matrix) for the actuator dynamics
+        :return: The control matrix with size, state_size x 1
+        """
+        pass
+
 
 class FirstOrderDeflection(ActuatorModel):
     """
@@ -65,8 +80,13 @@ class FirstOrderDeflection(ActuatorModel):
         :return: The derivative of the state vector of the actuator
         """
         x_dot = (cmd_delta - true_delta) / self.tau
-        return x_dot  # TODO check if this breaks stuff
-        #return ca.Function('first_order_deflection_actuator', [self.deflection_state, u], [x_dot])
+        return x_dot
+
+    def get_system_matrix(self) -> Optional[np.ndarray]:
+        return np.array([-1 / self.tau])
+
+    def get_control_matrix(self) -> Optional[np.ndarray]:
+        return np.array([1 / self.tau])
 
 
 if __name__ == "__main__":
