@@ -94,9 +94,28 @@ class FirstOrderDeflection(ActuatorModel):
         return np.array([1 / self.tau])
 
 
+class DirectDerivative(ActuatorModel):
+    """
+    Direct derivative actuator model
+    """
+    def __init__(self):
+        super().__init__(state_size=1)
+
+    def get_system_matrix(self) -> np.ndarray:
+        """
+        Gets the system matrix (A matrix) for the Direct Derivative actuator dynamics
+        """
+        return np.array([0])
+
+    def get_control_matrix(self) -> np.ndarray:
+        """
+        Gets the control matrix (B matrix) for the Direct Derivative actuator dynamics
+        """
+        return np.array([1])
+
 class SecondOrderDeflection(ActuatorModel):
     """
-    Second-Order Deflection Actuator Model.
+    Second-Order Deflection Actuator Model
     """
     def __init__(self, natural_frequency: float, damping_ratio: float):
         if natural_frequency <= 0:
@@ -109,7 +128,7 @@ class SecondOrderDeflection(ActuatorModel):
 
     def get_system_matrix(self) -> Optional[np.ndarray]:
         """
-        Gets the system matrix (A matrix) for the 2nd order actuator dynamics.
+        Gets the system matrix (A matrix) for the 2nd order actuator dynamics
         """
         return np.array([
             [0, 1],

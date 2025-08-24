@@ -191,8 +191,6 @@ class AeroVehicle:
 
         def dynamics_6dof(t: float, state: np.ndarray) -> np.ndarray:
             vel_I = state[3:6]
-            quat = state[6:10]
-            omega_B = state[10:13]
 
             if print_debug:
                 print(f"Time: {t:.2f} s")
@@ -210,14 +208,8 @@ class AeroVehicle:
                 deflections_state_dot = np.empty(0)
                 deflections_true = np.zeros(len(self.components))
 
-            F_B, M_B = self.compute_forces_and_moments(state, deflections_true)
-            C_I_B = utils.dir_cosine_np(quat).T
-            F_I = (C_I_B @ F_B) + self.mass * g
-            v_dot = F_I / self.mass
+            v_dot, omega_dot, quat_dot = self._calculate_rigid_body_derivatives(state, deflections_true, g)
 
-            J_B = np.array(self.moi)
-            omega_dot = np.linalg.inv(J_B) @ (M_B - np.cross(omega_B, J_B @ omega_B))
-            quat_dot = 0.5 * utils.omega(omega_B) @ quat
             return np.concatenate((vel_I, v_dot, quat_dot, omega_dot, deflections_state_dot))
 
         nd = np.zeros(self.actuator_dynamics.deflection_state_size)
@@ -229,7 +221,13 @@ class AeroVehicle:
         # Create the array of time points for the solver to output
         t_eval = np.linspace(t_span[0], t_span[1], num_points)
 
+        import time
+        start_time = time.perf_counter()
         solution = solve_ivp(dynamics_6dof, t_span, state_0, t_eval=t_eval, rtol=1e-5, atol=1e-5)
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        print("Simulation finished.")
+        print(f"Total time for {num_points} nodes: {elapsed_time:.4f} seconds.")
 
         # Get control
         u_values = np.empty(0)
@@ -238,7 +236,63 @@ class AeroVehicle:
 
         return solution['t'], solution['y'], u_values
 
+    def _calculate_rigid_body_derivatives(
+        self,
+        state: Union[np.ndarray, ca.MX],
+        deflections_true: Union[np.ndarray, ca.MX],
+        g: Union[np.ndarray, ca.MX])\
+            -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
+        """
+        Calculates the rigid body derivatives given a state and deflections
+        param state: The state to calculate the derivatives for
+        param deflections_true: The true deflection of the flaps
+        param g: The gravitational force acting on the body
+        :return: The rigid body derivatives
+        """
 
+        # Extract quaterion and angular rate from state
+        quat = state[6:10]
+        omega_B = state[10:13]
+
+        # check if state is a casadi object
+        is_casadi = isinstance(state, (ca.MX, ca.SX))
+
+        # if casadi use casadi functions, else use numpy
+        if is_casadi:
+            inv_func = ca.inv
+            cross_func = ca.cross
+            array_func = ca.MX
+            dir_cosine_func = utils.dir_cosine_ca
+            omega_matrix_func = utils.omega_ca
+        else:
+            inv_func = np.linalg.inv
+            cross_func = np.cross
+            array_func = np.array
+            dir_cosine_func = utils.dir_cosine_np
+            omega_matrix_func = utils.omega
+
+        # Calculate external forces and moments as function
+        F_B, M_B = self.compute_forces_and_moments(state, deflections_true)
+
+        # compute direction cosine matrix
+        C_I_B = dir_cosine_func(quat).T
+
+        # force in inertial frame
+        F_I = (C_I_B @ F_B) + self.mass * g
+
+        # calculate inertial acceleration
+        v_dot = F_I / self.mass
+
+        # get moment of inertia
+        J_B = array_func(self.moi)
+
+        # angular acceleration based on conservation of momentum
+        omega_dot = inv_func(J_B) @ (M_B - cross_func(omega_B, J_B @ omega_B))
+
+        # angular rate calculation
+        quat_dot = 0.5 * (omega_matrix_func(omega_B) @ quat)
+
+        return v_dot, omega_dot, quat_dot
 
     def _create_acados_model(
         self,
@@ -286,14 +340,8 @@ class AeroVehicle:
 
         nx = state.shape[0]
 
-        F_B, M_B = self.compute_forces_and_moments(state, deflections_true)
-        C_I_B = utils.dir_cosine_ca(quat).T
-        F_I = (C_I_B @ F_B) + self.mass * g
-        v_dot = F_I / self.mass
+        v_dot, omega_dot, quat_dot = self._calculate_rigid_body_derivatives(state, deflections_true, g)
 
-        J_B = ca.MX(self.moi)
-        omega_dot = ca.inv(J_B) @ (M_B - ca.cross(omega_B, J_B @ omega_B))
-        quat_dot = 0.5 * (utils.omega_ca(omega_B) @ quat)
         f_expl_expr = ca.vertcat(vel_I, v_dot, quat_dot, omega_dot, deflections_state_dot)
 
         xdot = ca.MX.sym('xdot', nx, 1)
@@ -363,6 +411,86 @@ class AeroVehicle:
         print(f"Total time for {N_sim} nodes: {elapsed_time:.4f} seconds.")
 
         return sim_t, sim_x.T, sim_u.T
+
+    def run_ocp(self):
+        """
+        Runs a 6DoF optimal control
+        """
+        if self.acados_model is None:
+            self._create_acados_model(True)
+
+        N = 50
+        tf = 5
+        q_ref = utils.euler_to_quat((0, 0, -10))
+
+        pos_0 = np.array([0, 0, 1000])  # Initial position
+        vel_0 = np.array([0, 0, -10])  # Initial velocity
+        quat_0 = utils.euler_to_quat((0, 0, 0))
+        omega_0 = np.array([0, 0, 0])  # Initial angular velocity
+        deflections = np.deg2rad(np.array([20, 20, 20, 20]))
+        x0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, deflections))
+
+        ocp = AcadosOcp()
+        ocp.model = self.acados_model
+
+        nx = ocp.model.x.rows()
+        nu = ocp.model.u.rows()
+        ny = nx + nu  # Cost function size for LINEAR_LS
+        ocp.dims.N = N
+
+        ocp.cost.yref = np.zeros(ny)
+        quat = ocp.model.x[6:10]
+        q_ref_ca = ca.MX(q_ref)
+        error_quat_vec = quat[1:] - q_ref_ca[1:]
+
+        ocp.model.cost_y_expr = ca.vertcat(
+            error_quat_vec,  # Penalize attitude error
+            ocp.model.x[10:13],  # Penalize angular velocity (dampen rotation)
+            ocp.model.u  # Penalize control effort
+        )
+        ocp.model.cost_y_expr_0 = ocp.model.cost_y_expr
+
+        Q_quat = 1e0  # High weight on keeping the correct attitude
+        Q_omega = 1e0  # Lower weight on damping angular velocity
+        R_controls = 1e-1  # Very low weight on control effort
+
+        W_diag = np.zeros(ny)
+        W_diag[7:10] = Q_quat
+        W_diag[10:13] = Q_omega
+        W_diag[nx:] = R_controls
+        ocp.cost.W = np.diag(W_diag)
+
+        ocp.cost.Vu = np.zeros((ny, nu))
+        ocp.cost.Vx = np.zeros((ny, nx))
+
+        ocp.constraints.x0 = x0
+        ocp.constraints.idxbx = np.array([13, 14, 15, 16])
+        ocp.constraints.lbx = np.deg2rad(np.array([5, 5, 5, 5]))
+        ocp.constraints.ubx = np.deg2rad(np.array([80, 80, 80, 80]))
+
+        # 5. Set Solver Options
+        ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
+        ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
+        ocp.solver_options.integrator_type = 'IRK'
+        ocp.solver_options.regularize_method = 'GERSHGORIN_LEVENBERG_MARQUARDT'
+        ocp.solver_options.levenberg_marquardt = 1e-1
+        ocp.solver_options.nlp_solver_type = 'SQP'
+        ocp.solver_options.tf = tf
+
+        # 6. Create and Solve
+        print("Creating OCP solver...")
+        acados_ocp_solver = AcadosOcpSolver(ocp, json_file='acados_ocp.json')
+
+        print("Solving OCP...")
+        status = acados_ocp_solver.solve()
+        acados_ocp_solver.print_statistics()
+        total_time = acados_ocp_solver.get_stats('time_tot')
+        print(f"Solver finished in {total_time * 1000:.3f} ms.")
+        print(f"Solver status: {status}")  # Should print 0
+
+        # 7. Extract and return the solution
+        sim_x = np.array([acados_ocp_solver.get(i, "x") for i in range(N + 1)])
+        sim_u = np.array([acados_ocp_solver.get(i, "u") for i in range(N)])
 
     def init_buildup_manager(self):
         """
