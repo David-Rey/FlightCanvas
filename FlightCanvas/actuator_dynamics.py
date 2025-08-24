@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from FlightCanvas.components.aero_component import AeroComponent
 from typing import List, Dict, Optional
 import numpy as np
+import casadi as ca
 
 @dataclass
 class ActuatorData:
@@ -25,6 +26,7 @@ class ActuatorDynamics:
         self.num_actuator_inputs_comp = 0
         self.deflection_state_size = 0
         self.create_actuator_dataset()
+        self.deflection_indices = [actuator.deflection_index for actuator in self.actuators]
 
         self.allocation_matrix = self.create_allocation_matrix()
 
@@ -33,15 +35,37 @@ class ActuatorDynamics:
 
         self.populate_system()
 
-        self.test_dyn()
 
-        print(1)
+    def get_dynamics(self, state: ca.MX, control: ca.MX) -> ca.MX:
+        """
+        Gets the actuator symbolic linear dynamics based
+        :param state: casadi expression representing the deflection states
+        :param control: casadi expression representing the control inputs
+        :return: casadi expression representing rate of change of dynamics
+        """
+        A = ca.MX(self.full_system_matrix)
+        B = ca.MX(self.full_control_matrix)
+        H = ca.MX(self.allocation_matrix)
+        return A @ state + B @ H @ control
 
-    def test_dyn(self):
-        A = self.full_system_matrix
-        B = self.full_control_matrix @ self.allocation_matrix
+    def get_component_deflection(self, state: np.ndarray, control: np.ndarray) -> np.ndarray:
+        """
+        TODO
+        """
+        true_deflections = np.zeros(self.num_components)
 
-        print(2)
+        for i in range(self.num_components):
+            actuator = self.actuators[i]
+            true_deflection = 0
+            if actuator.deflection_index is not None:
+                true_deflection = state[actuator.deflection_index]
+            elif actuator.control_index is not None:
+                true_deflection = control[actuator.control_index]
+            true_deflections[i] = true_deflection
+
+        return true_deflections
+
+
 
     def create_allocation_matrix(self) -> np.ndarray:
         """
@@ -127,10 +151,11 @@ class ActuatorDynamics:
             order = actuator.order
             deflection_index = actuator.deflection_index
             if deflection_index is not None:
+                control_index = actuator.control_index
                 index_start = deflection_index
                 index_end = deflection_index + order
                 self.full_system_matrix[index_start:index_end, index_start:index_end] = actuator.A
-                self.full_control_matrix[deflection_index, index_start:index_end] = actuator.B
+                self.full_control_matrix[index_start:index_end, control_index] = actuator.B
 
 
 
@@ -140,7 +165,7 @@ if __name__ == "__main__":
 
     from scipy.interpolate import splprep, splev
 
-    from FlightCanvas.actuators import FirstOrderDeflection
+    from FlightCanvas.actuators import FirstOrderDeflection, SecondOrderDeflection
     from FlightCanvas.components.aero_fuselage import AeroFuselage
     from FlightCanvas.components.aero_wing import create_planar_wing_pair
 
@@ -258,7 +283,8 @@ if __name__ == "__main__":
         translation=[5, 2.9, 0],  # Apply translation to the whole pair
         ref_direction=[1, 0.18, 0],
         control_pivot=[1, 0.18, 0],
-        actuator_model=FirstOrderDeflection(time_constant=1)
+        actuator_model=FirstOrderDeflection(time_constant=0.3)
+        #actuator_model=FirstOrderDeflection(natural_frequency=10, damping_ratio=0.7)
     )
 
     back_flap_length = 15
@@ -288,7 +314,7 @@ if __name__ == "__main__":
         translation=[35, 4.5, 0],  # Apply translation to the whole pair
         ref_direction=[1, 0, 0],
         control_pivot=[1, 0, 0],
-        actuator_model=FirstOrderDeflection(time_constant=1)
+        actuator_model=SecondOrderDeflection(natural_frequency=10, damping_ratio=0.7)
     )
 
     all_components = [
@@ -325,8 +351,8 @@ if __name__ == "__main__":
         }
     }
 
-    ActuatorDynamics(all_components, control_mapping_2)
-
+    dyn = ActuatorDynamics(all_components, control_mapping_2)
+    print(dyn)
 
     """
     def create_allocation_matrix_old(self) -> np.ndarray:
