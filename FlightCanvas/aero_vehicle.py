@@ -197,12 +197,20 @@ class AeroVehicle:
             if print_debug:
                 print(f"Time: {t:.2f} s")
 
-            cmd_deflections = np.zeros(len(self.components))
-            if open_loop_control is not None:
-                control = open_loop_control.get_u(t)
-                cmd_deflections = self.allocation_matrix @ control
+            # Get number of states and control inputs
+            if self.actuator_dynamics is not None:
+                deflections_state = state[13:]
+                deflections_true = np.array([
+                    deflections_state[i] if i is not None else 0
+                    for i in self.actuator_dynamics.deflection_indices
+                ])
+                control_inputs = open_loop_control.get_u(t)
+                deflections_state_dot = self.actuator_dynamics.get_dynamics(deflections_state, control_inputs)
+            else:
+                deflections_state_dot = np.empty(0)
+                deflections_true = np.zeros(len(self.components))
 
-            F_B, M_B = self.compute_forces_and_moments(state, cmd_deflections)
+            F_B, M_B = self.compute_forces_and_moments(state, deflections_true)
             C_I_B = utils.dir_cosine_np(quat).T
             F_I = (C_I_B @ F_B) + self.mass * g
             v_dot = F_I / self.mass
@@ -210,9 +218,10 @@ class AeroVehicle:
             J_B = np.array(self.moi)
             omega_dot = np.linalg.inv(J_B) @ (M_B - np.cross(omega_B, J_B @ omega_B))
             quat_dot = 0.5 * utils.omega(omega_B) @ quat
-            return np.concatenate((vel_I, v_dot, quat_dot, omega_dot))
+            return np.concatenate((vel_I, v_dot, quat_dot, omega_dot, deflections_state_dot))
 
-        state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
+        nd = np.zeros(self.actuator_dynamics.deflection_state_size)
+        state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, nd))
         t_span = (0, tf)
 
         num_points = int(tf / dt) + 1
@@ -294,10 +303,6 @@ class AeroVehicle:
         model.f_expl_expr = f_expl_expr
         model.f_impl_expr = f_impl_expr
         self.acados_model = model
-
-        # true_deflections, deflections_dot, u, idx = self._get_deflection_states_2()
-        # state = ca.vertcat(pos_I, vel_I, quat, omega_B, true_deflections)
-        # model.x = state
 
 
     def _run_sim_casadi(

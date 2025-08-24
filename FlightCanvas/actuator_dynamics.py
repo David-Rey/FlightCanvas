@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from FlightCanvas.components.aero_component import AeroComponent
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 import numpy as np
 import casadi as ca
 
@@ -36,16 +36,22 @@ class ActuatorDynamics:
         self.populate_system()
 
 
-    def get_dynamics(self, state: ca.MX, control: ca.MX) -> ca.MX:
+    def get_dynamics(self, state: Union[np.ndarray, ca.MX], control: Union[np.ndarray, ca.MX]) -> Union[np.ndarray, ca.MX]:
         """
         Gets the actuator symbolic linear dynamics based
         :param state: casadi expression representing the deflection states
         :param control: casadi expression representing the control inputs
         :return: casadi expression representing rate of change of dynamics
         """
-        A = ca.MX(self.full_system_matrix)
-        B = ca.MX(self.full_control_matrix)
-        H = ca.MX(self.allocation_matrix)
+        is_casadi = isinstance(state, (ca.SX, ca.MX))
+        if is_casadi:
+            to_type = ca.MX
+        else:
+            to_type = np.array
+
+        A = to_type(self.full_system_matrix)
+        B = to_type(self.full_control_matrix)
+        H = to_type(self.allocation_matrix)
         return A @ state + B @ H @ control
 
     def get_component_deflection(self, state: np.ndarray, control: np.ndarray) -> np.ndarray:
