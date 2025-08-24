@@ -48,14 +48,7 @@ class AeroVehicle:
 
         self.actuator_dynamics = None
 
-
-        #self.control_mapping = None
-        #self.allocation_matrix = None
-        #self.ca_u = None
-
         self.acados_model = None
-
-        #self.acados_path = '/home/david/Desktop/main/acados'  # NOTE: This will change from system to system
 
         self.vehicle_path = f'vehicle_saves/{self.name}'
 
@@ -111,42 +104,6 @@ class AeroVehicle:
         """
         self.actuator_dynamics = ActuatorDynamics(self.components, control_mapping)
 
-    #def set_control_mapping(self, control_mapping: dict):
-    """
-        Sets the control mapping for the vehicle
-        :param control_mapping: A dictionary that maps each component to its control
-        
-        self.control_mapping = control_mapping
-
-        # Get sorted lists of commands (for columns) and component names (for rows)
-        command_names = control_mapping.keys()
-        actuator_names = [comp.name for comp in self.components]
-
-        # Create helper dictionaries to map names to matrix indices
-        actuator_to_row = {name: i for i, name in enumerate(actuator_names)}
-        command_to_col = {name: i for i, name in enumerate(command_names)}
-
-        # Initialize a zero matrix with the correct dimensions
-        num_actuators = len(actuator_names)
-        num_commands = len(command_names)
-        self.allocation_matrix = np.zeros((num_actuators, num_commands))
-
-        # Populate the matrix with gains from the input dictionary
-        for command, component_map in control_mapping.items():
-            col_idx = command_to_col[command]
-            for actuator_name, gain in component_map.items():
-                if actuator_name in actuator_to_row:
-                    row_idx = actuator_to_row[actuator_name]
-                    self.allocation_matrix[row_idx, col_idx] = gain
-                else:
-                    # Warn if a name in the mapping doesn't match a component
-                    print(
-                        f"Warning: Actuator '{actuator_name}' in control mapping "
-                        f"does not correspond to any component name."
-                    )
-        # Set up casadi control variables
-        self.ca_u = ca.MX.sym('control', num_commands)
-    """
 
     def compute_forces_and_moments(
         self,
@@ -180,34 +137,6 @@ class AeroVehicle:
 
         return F_b, M_b
 
-    """
-    def set_control(self, control: np.ndarray):
-        
-        Sets the deflection angle for one or more control surfaces
-        :param control: A list of corresponding control deflection angles in radians
-        
-
-        # Get deflections based on allocation matrix
-        deflections = self.allocation_matrix @ control
-
-        # Get the sorted list of component names to serve as keys.
-        actuator_names = [comp.name for comp in self.components]
-
-        # Create a dictionary mapping each component name to its calculated deflection.
-        deflection_map = {
-            name: deflection for name, deflection in zip(actuator_names, deflections)
-        }
-
-        # Iterate through all components and apply their calculated deflection.
-        for component in self.components:
-            # Check if this component is a controllable surface.
-            if component.name in deflection_map:
-                # Get the specific deflection for this component from the map.
-                rotation_command = deflection_map[component.name]
-
-                # Update the component's transformation matrix with the new rotation.
-                component.update_transform(rotation=rotation_command)
-    """
 
     def run_sim(
         self,
@@ -597,101 +526,3 @@ class AeroVehicle:
         """
         self.pl.add_axes_at_origin(labels_off=True)
         self.pl.show(**kwargs)
-
-    # def _get_deflection_states(self) -> Tuple[ca.MX, ca.MX, ca.MX]:
-    #    """
-    #    TODO
-    #    """
-    #    nd = self.allocation_matrix.shape[0]
-    #    nu = self.allocation_matrix.shape[1]
-    #
-    #    deflections = ca.MX.zeros(nd)
-    #    deflections_dot = ca.MX.zeros(nd)
-    #
-    #    u = ca.MX.sym('u', nu)
-    #    cmd_deflections = self.allocation_matrix @ u
-    #
-    #    for i in range(len(self.components)):
-    #        component = self.components[i]
-    #        if component.actuator_model is not None:
-    #            deflection_state_size = component.actuator_model.state_size
-    #
-    #            # Sanitize the name for CasADi (replace spaces with underscores)
-    #            safe_name = component.name.replace(' ', '_')
-    #            true_deflection = ca.MX.sym(safe_name, deflection_state_size)
-    #            cmd_deflection = cmd_deflections[i]
-    #
-    #            # Append the new symbolic Functino to the list
-    #            deflection_derivative = component.actuator_model.get_casadi_expression(cmd_deflection, true_deflection)
-    #
-    #            deflections[i] = true_deflection
-    #            deflections_dot[i] = deflection_derivative
-
-    # Append the new symbolic variable to the list
-
-    # deflection_list.append(true_deflection)
-    # deflection_dot_list.append(deflection_derivative)
-
-    # After the loop, vertically stack all collected variables
-    # if deflection_list:  # Check if the list is not empty
-    #    deflections = ca.vertcat(*deflection_list)
-    #    deflections_dot = ca.vertcat(*deflection_dot_list)
-    # else:
-    #    deflections = ca.MX([])
-    #    deflections_dot = ca.MX([])
-
-    # return deflections, deflections_dot, u
-
-    """
-    def _get_deflection_states_2(self) -> Tuple[ca.MX, ca.MX, ca.MX, List[int]]:
-
-        Builds the symbolic state vectors for actuated deflections.
-        Returns: TODO
-
-        nu = self.allocation_matrix.shape[1]
-        nd = self.allocation_matrix.shape[0]
-
-        # --- Initialize empty lists for the dynamic states and their indices ---
-        deflection_states = []
-        deflection_dots = []
-        actuated_indices = [None] * nd
-
-        u = ca.MX.sym('u', nu)
-        cmd_deflections = self.allocation_matrix @ u
-
-        counter_idx = 0
-
-        # --- Single loop to build states, derivatives, and indices ---
-        for i, component in enumerate(self.components):
-            # Check if the component has an actuator model
-            if component.actuator_model is not None:
-                # --- Store the index of the actuated component ---
-                actuated_indices[i] = counter_idx
-
-                deflection_state_size = component.actuator_model.state_size
-
-                # Sanitize the name for CasADi
-                safe_name = component.name.replace(' ', '_')
-                true_deflection = ca.MX.sym(safe_name, deflection_state_size)
-
-                # Append the new symbolic state to the list
-                deflection_states.append(true_deflection)
-
-                # The commanded deflection for this specific component
-                cmd_deflection = cmd_deflections[i]
-
-                # Calculate the derivative and append it to the list
-                deflection_derivative = component.actuator_model.get_casadi_expression(cmd_deflection,
-                                                                                       true_deflection)
-                deflection_dots.append(deflection_derivative)
-
-                counter_idx = counter_idx + 1
-
-        # --- Vertically concatenate the lists into single CasADi vectors ---
-        # The '*' unpacks the lists into arguments for vertcat
-        final_deflections = ca.vertcat(*deflection_states)
-        final_deflections_dot = ca.simplify(ca.vertcat(*deflection_dots))
-
-        # --- Return the vectors, the control input, and the new list of indices ---
-        return final_deflections, final_deflections_dot, u, actuated_indices
-    """
