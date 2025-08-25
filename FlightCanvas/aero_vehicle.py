@@ -440,9 +440,9 @@ class AeroVehicle:
             self._create_acados_model(True)
 
         N = 100
-        tf = 20
+        tf = 25
         dt = tf / N
-        #q_ref = utils.euler_to_quat((0, 0, -10))
+        q_ref = utils.euler_to_quat((0, 0, 25))
 
         pos_0 = np.array([10, 0, 1000])  # Initial position
         vel_0 = np.array([0, 0, -10])  # Initial velocity
@@ -465,34 +465,20 @@ class AeroVehicle:
         ocp.dims.nx = nx
         ocp.dims.nu = nu
 
-        #ocp.cost.cost_type = 'EXTERNAL'
-        #ocp.cost.cost_type_e = 'EXTERNAL'
-
-        #x = ocp.model.x
-        #u = ocp.model.u
-
-        #ocp.cost.yref = np.zeros(ny)
-        #quat = ocp.model.x[6:10]
-        #q_ref_ca = ca.MX(q_ref)
-        #error_quat_vec = quat[1:] - q_ref_ca[1:]
-
-        #ocp.model.cost_y_expr = ca.vertcat(
-        #    error_quat_vec,  # Penalize attitude error
-        #    ocp.model.x[10:13],  # Penalize angular velocity (dampen rotation)
-        #    ocp.model.u  # Penalize control effort
-        #)
-        #ocp.model.cost_y_expr_0 = ocp.model.cost_y_expr
-
         ocp.cost.yref = np.zeros(ny)
         ocp.cost.yref_e = np.zeros(nx)
 
-        #Q_quat = 1e4  # High weight on keeping the correct attitude
-        Q_omega = 1e1  # Lower weight on damping angular velocity
+        ocp.cost.yref[7:10] = q_ref[1:]
+        ocp.cost.yref_e[7:10] = q_ref[1:]
+
+        Q_omega = 5e1
         Q_pos = 1e1
+        Q_quat = 2e2
         R_controls = 1e0  # Very low weight on control effort
 
         Q_diag = np.zeros(nx)
         Q_diag[0:2] = Q_pos
+        Q_diag[7:10] = Q_quat
         Q_diag[10:13] = Q_omega  # Weight on angular velocity
         Q_mat = np.diag(Q_diag)
 
