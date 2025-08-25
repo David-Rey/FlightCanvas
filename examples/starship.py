@@ -124,7 +124,7 @@ if __name__ == '__main__':
         translation=[5, 2.9, 0],  # Apply translation to the whole pair
         ref_direction=[1, 0.18, 0],
         control_pivot=[1, 0.18, 0],
-        actuator_model=FirstOrderDeflection(time_constant=1)
+        actuator_model=DirectDerivative()
     )
 
     back_flap_length = 15
@@ -154,7 +154,7 @@ if __name__ == '__main__':
         translation=[35, 4.5, 0],  # Apply translation to the whole pair
         ref_direction=[1, 0, 0],
         control_pivot=[1, 0, 0],
-        actuator_model=FirstOrderDeflection(time_constant=1)
+        actuator_model=DirectDerivative()
     )
 
     all_components = [
@@ -216,10 +216,11 @@ if __name__ == '__main__':
         vel_0 = np.array([0, 0, -1])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, -30))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
+        delta_0 = np.deg2rad(np.array([20, 20, 10, 10]))
         tf = 30
 
-        t_arr, x_arr, u_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf,
-                            casadi=False, open_loop_control=controls, gravity=True)
+        t_arr, x_arr, u_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf,
+                            casadi=True, open_loop_control=controls, gravity=True)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
         aero_vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
     elif switcher == 1:
@@ -228,4 +229,6 @@ if __name__ == '__main__':
         aero_vehicle.show()
 
     elif switcher == 2:
-        aero_vehicle.run_ocp()
+        t_arr, x_arr, u_arr = aero_vehicle.run_ocp()
+        aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
+        aero_vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)

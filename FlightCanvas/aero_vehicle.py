@@ -1,7 +1,8 @@
 # aero_project/FlightCanvas/aero_vehicle.py
 
 import pathlib
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
+import scipy.linalg
 
 import aerosandbox.numpy as np
 import casadi as ca
@@ -144,6 +145,7 @@ class AeroVehicle:
         vel_0: np.ndarray,
         quat_0: np.ndarray,
         omega_0: np.ndarray,
+        delta_0: np.ndarray,
         tf: float,
         dt: float = 0.02,
         gravity: bool = True,
@@ -167,10 +169,10 @@ class AeroVehicle:
         """
         if casadi:
             # Call the CasADi-specific simulation function
-            return self._run_sim_casadi(pos_0, vel_0, quat_0, omega_0, tf, dt, gravity, open_loop_control)
+            return self._run_sim_casadi(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, open_loop_control)
         else:
             # Call the SciPy/NumPy-specific simulation function
-            return self._run_sim_scipy(pos_0, vel_0, quat_0, omega_0, tf, dt, gravity, print_debug, open_loop_control)
+            return self._run_sim_scipy(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, print_debug, open_loop_control)
 
     def _run_sim_scipy(
         self,
@@ -178,16 +180,21 @@ class AeroVehicle:
         vel_0: np.ndarray,
         quat_0: np.ndarray,
         omega_0: np.ndarray,
+        delta_0: np.ndarray,
         tf: float,
         dt: float,
         gravity: bool,
         print_debug: bool,
-        open_loop_control: OpenLoopControl
+        open_loop_control: Optional[OpenLoopControl]
     ) -> Tuple[np.ndarray, np.ndarray,  np.ndarray]:
         """
         Runs a 6DoF simulation using SciPy's adaptive-step ODE solver.
         """
         g = np.array([0, 0, -9.81]) if gravity else np.array([0, 0, 0])
+
+        num_control_inputs = 0
+        if self.actuator_dynamics is not None:
+            num_control_inputs = self.actuator_dynamics.num_control_inputs
 
         def dynamics_6dof(t: float, state: np.ndarray) -> np.ndarray:
             vel_I = state[3:6]
@@ -198,12 +205,16 @@ class AeroVehicle:
             # Get number of states and control inputs
             if self.actuator_dynamics is not None:
                 deflections_state = state[13:]
+
                 deflections_true = np.array([
                     deflections_state[i] if i is not None else 0
                     for i in self.actuator_dynamics.deflection_indices
                 ])
-                control_inputs = open_loop_control.get_u(t)
-                deflections_state_dot = self.actuator_dynamics.get_dynamics(deflections_state, control_inputs)
+                if open_loop_control is not None:
+                    control_inputs = open_loop_control.get_u(t)
+                    deflections_state_dot = self.actuator_dynamics.get_dynamics(deflections_state, control_inputs)
+                else:
+                    deflections_state_dot = np.zeros(len(deflections_state))
             else:
                 deflections_state_dot = np.empty(0)
                 deflections_true = np.zeros(len(self.components))
@@ -211,9 +222,9 @@ class AeroVehicle:
             v_dot, omega_dot, quat_dot = self._calculate_rigid_body_derivatives(state, deflections_true, g)
 
             return np.concatenate((vel_I, v_dot, quat_dot, omega_dot, deflections_state_dot))
-
-        nd = np.zeros(self.actuator_dynamics.deflection_state_size)
-        state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, nd))
+        if delta_0 is None:
+            delta_0 = np.empty(0)
+        state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, delta_0))
         t_span = (0, tf)
 
         num_points = int(tf / dt) + 1
@@ -230,7 +241,7 @@ class AeroVehicle:
         print(f"Total time for {num_points} nodes: {elapsed_time:.4f} seconds.")
 
         # Get control
-        u_values = np.empty(0)
+        u_values = np.zeros((num_control_inputs, num_points))
         if open_loop_control is not None:
             u_values = np.array([open_loop_control.get_u(t) for t in solution['t']]).T
 
@@ -296,7 +307,8 @@ class AeroVehicle:
 
     def _create_acados_model(
         self,
-        gravity: bool
+        gravity: bool,
+        control: bool = True
     ):
         """
         TODO
@@ -329,6 +341,8 @@ class AeroVehicle:
             control_inputs = ca.MX.sym('control_inputs', num_control_inputs)
             state = ca.vertcat(pos_I, vel_I, quat, omega_B, deflections_state)
             deflections_state_dot = self.actuator_dynamics.get_dynamics(deflections_state, control_inputs)
+            if not control:
+                deflections_state_dot = ca.MX.zeros(num_deflection_states)
 
             model.x = state
             model.u = control_inputs
@@ -359,10 +373,11 @@ class AeroVehicle:
         vel_0: np.ndarray,
         quat_0: np.ndarray,
         omega_0: np.ndarray,
+        delta_0: np.ndarray,
         tf: float,
         dt: float,
         gravity: bool,
-        open_loop_control: OpenLoopControl
+        open_loop_control: Optional[OpenLoopControl]
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Runs a 6DoF simulation using a fixed-step CasADi RK4 integrator.
@@ -386,22 +401,27 @@ class AeroVehicle:
         nx = sim.model.x.rows()
         nu = sim.model.u.rows()
 
-        nd = np.zeros(nx - 13)
-
-        x0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, nd))
+        if delta_0 is None:
+            delta_0 = np.empty(0)
+        x0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, delta_0))
 
         acados_integrator = AcadosSimSolver(sim)
 
         sim_x = np.zeros((N_sim + 1, nx))
         sim_x[0, :] = x0
         sim_u = np.zeros((N_sim + 1, nu))
-        sim_u[0, :] = open_loop_control.get_u(0)
+        sim_u[0, :] = np.zeros(nu)
+        if open_loop_control is not None:
+            sim_u[0, :] = open_loop_control.get_u(0)
+
         sim_t = np.zeros((N_sim + 1))
 
         import time
         start_time = time.perf_counter()
         for i in range(N_sim):
-            u_current = open_loop_control.get_u(sim_t[i])
+            u_current = np.zeros(nu)
+            if open_loop_control is not None:
+                u_current = open_loop_control.get_u(sim_t[i])
             sim_x[i + 1, :] = acados_integrator.simulate(x=sim_x[i, :], u=u_current)
             sim_u[i + 1, :] = u_current
             sim_t[i + 1] = (i + 1) * dt
@@ -419,49 +439,80 @@ class AeroVehicle:
         if self.acados_model is None:
             self._create_acados_model(True)
 
-        N = 50
-        tf = 5
-        q_ref = utils.euler_to_quat((0, 0, -10))
+        N = 100
+        tf = 20
+        dt = tf / N
+        #q_ref = utils.euler_to_quat((0, 0, -10))
 
-        pos_0 = np.array([0, 0, 1000])  # Initial position
+        pos_0 = np.array([10, 0, 1000])  # Initial position
         vel_0 = np.array([0, 0, -10])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
-        deflections = np.deg2rad(np.array([20, 20, 20, 20]))
-        x0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, deflections))
+        delta_0 = np.deg2rad(np.array([20, 20, 10, 10]))
+        x0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, delta_0))
 
         ocp = AcadosOcp()
         ocp.model = self.acados_model
 
         nx = ocp.model.x.rows()
         nu = ocp.model.u.rows()
-        ny = nx + nu  # Cost function size for LINEAR_LS
-        ocp.dims.N = N
+        ny = nx + nu
+        ocp.solver_options.N_horizon = N
+
+        ocp.cost.cost_type = 'LINEAR_LS'
+        ocp.cost.cost_type_e = 'LINEAR_LS'
+
+        ocp.dims.nx = nx
+        ocp.dims.nu = nu
+
+        #ocp.cost.cost_type = 'EXTERNAL'
+        #ocp.cost.cost_type_e = 'EXTERNAL'
+
+        #x = ocp.model.x
+        #u = ocp.model.u
+
+        #ocp.cost.yref = np.zeros(ny)
+        #quat = ocp.model.x[6:10]
+        #q_ref_ca = ca.MX(q_ref)
+        #error_quat_vec = quat[1:] - q_ref_ca[1:]
+
+        #ocp.model.cost_y_expr = ca.vertcat(
+        #    error_quat_vec,  # Penalize attitude error
+        #    ocp.model.x[10:13],  # Penalize angular velocity (dampen rotation)
+        #    ocp.model.u  # Penalize control effort
+        #)
+        #ocp.model.cost_y_expr_0 = ocp.model.cost_y_expr
 
         ocp.cost.yref = np.zeros(ny)
-        quat = ocp.model.x[6:10]
-        q_ref_ca = ca.MX(q_ref)
-        error_quat_vec = quat[1:] - q_ref_ca[1:]
+        ocp.cost.yref_e = np.zeros(nx)
 
-        ocp.model.cost_y_expr = ca.vertcat(
-            error_quat_vec,  # Penalize attitude error
-            ocp.model.x[10:13],  # Penalize angular velocity (dampen rotation)
-            ocp.model.u  # Penalize control effort
-        )
-        ocp.model.cost_y_expr_0 = ocp.model.cost_y_expr
+        #Q_quat = 1e4  # High weight on keeping the correct attitude
+        Q_omega = 1e1  # Lower weight on damping angular velocity
+        Q_pos = 1e1
+        R_controls = 1e0  # Very low weight on control effort
 
-        Q_quat = 1e0  # High weight on keeping the correct attitude
-        Q_omega = 1e0  # Lower weight on damping angular velocity
-        R_controls = 1e-1  # Very low weight on control effort
+        Q_diag = np.zeros(nx)
+        Q_diag[0:2] = Q_pos
+        Q_diag[10:13] = Q_omega  # Weight on angular velocity
+        Q_mat = np.diag(Q_diag)
 
-        W_diag = np.zeros(ny)
-        W_diag[7:10] = Q_quat
-        W_diag[10:13] = Q_omega
-        W_diag[nx:] = R_controls
-        ocp.cost.W = np.diag(W_diag)
+        # Create diagonal R matrix for control costs
+        R_mat = np.diag(np.full(nu, R_controls))
 
-        ocp.cost.Vu = np.zeros((ny, nu))
+        ocp.cost.W = scipy.linalg.block_diag(Q_mat, R_mat)
+        ocp.cost.W_e = Q_mat
         ocp.cost.Vx = np.zeros((ny, nx))
+        ocp.cost.Vx[:nx, :nx] = np.eye(nx)
+        ocp.cost.Vu = np.zeros((ny, nu))
+        ocp.cost.Vu[nx:, :nu] = np.eye(nu)
+        ocp.cost.Vx_e = np.eye(nx)
+
+        max_rate_rad_s = np.deg2rad(20.0)  # e.g., 90 deg/s
+        min_rate_rad_s = -max_rate_rad_s
+
+        ocp.constraints.idxbu = np.arange(nu)  # Constrain all control inputs
+        ocp.constraints.lbu = np.full(nu, min_rate_rad_s)
+        ocp.constraints.ubu = np.full(nu, max_rate_rad_s)
 
         ocp.constraints.x0 = x0
         ocp.constraints.idxbx = np.array([13, 14, 15, 16])
@@ -476,10 +527,17 @@ class AeroVehicle:
         ocp.solver_options.levenberg_marquardt = 1e-1
         ocp.solver_options.nlp_solver_type = 'SQP'
         ocp.solver_options.tf = tf
+        #ocp.solver_options.fixed_hess = 1
 
         # 6. Create and Solve
         print("Creating OCP solver...")
         acados_ocp_solver = AcadosOcpSolver(ocp, json_file='acados_ocp.json')
+
+        _, init_x, init_u = self._run_sim_scipy(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, True, False, None)
+        for i in range(N):
+            acados_ocp_solver.set(i, "x", init_x[:, i])
+            acados_ocp_solver.set(i, "u", init_u[:, i])
+        acados_ocp_solver.set(N, "x", init_x[:, N])
 
         print("Solving OCP...")
         status = acados_ocp_solver.solve()
@@ -488,9 +546,15 @@ class AeroVehicle:
         print(f"Solver finished in {total_time * 1000:.3f} ms.")
         print(f"Solver status: {status}")  # Should print 0
 
+        cost_value = acados_ocp_solver.get_cost()
+        print(f"\nFinal Cost Function Value: {cost_value}")
+
         # 7. Extract and return the solution
+        time_vec = np.linspace(0, tf, N)
         sim_x = np.array([acados_ocp_solver.get(i, "x") for i in range(N + 1)])
         sim_u = np.array([acados_ocp_solver.get(i, "u") for i in range(N)])
+        return time_vec, sim_x.T, sim_u.T
+
 
     def init_buildup_manager(self):
         """
