@@ -523,7 +523,7 @@ class AeroComponent(ABC):
         :return: A tuple containing the angle of attack (alpha) and sideslip angle (beta)
         """
         is_casadi = isinstance(v_rel, (ca.SX, ca.MX))
-        epsilon = 1e-10
+        epsilon = 1e-3
 
         if is_casadi:
             v_a = ca.norm_2(v_rel)

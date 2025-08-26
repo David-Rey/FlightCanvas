@@ -13,6 +13,7 @@ import aerosandbox as asb
 import aerosandbox.tools.pretty_plots as p
 
 from FlightCanvas import utils
+import scipy.ndimage
 
 
 class BuildupManager:
@@ -207,9 +208,22 @@ class BuildupManager:
         Cm_data = np.column_stack(self.asb_data_static["Cm"]).reshape(self.alpha_grid.shape)
         Cn_data = np.column_stack(self.asb_data_static["Cn"]).reshape(self.alpha_grid.shape)
 
+        sigma_to_tune = 2
+        CL_data_smooth = scipy.ndimage.gaussian_filter(CL_data, sigma=sigma_to_tune)
+        CY_data_smooth = scipy.ndimage.gaussian_filter(CY_data, sigma=sigma_to_tune)
+        CD_data_smooth = scipy.ndimage.gaussian_filter(CD_data, sigma=sigma_to_tune)
+        Cl_data_smooth = scipy.ndimage.gaussian_filter(Cl_data, sigma=sigma_to_tune)
+        Cm_data_smooth = scipy.ndimage.gaussian_filter(Cm_data, sigma=sigma_to_tune)
+        Cn_data_smooth = scipy.ndimage.gaussian_filter(Cn_data, sigma=sigma_to_tune)
+
+        #self.stacked_coeffs_data_static = np.stack(
+        #    [CL_data, CY_data, CD_data, Cl_data, Cm_data, Cn_data],
+        #    axis=-1
+        #)
+
         # Stack the 2D grids into a single 3D data array and store it
         self.stacked_coeffs_data_static = np.stack(
-            [CL_data, CY_data, CD_data, Cl_data, Cm_data, Cn_data],
+            [CL_data_smooth, CY_data_smooth, CD_data_smooth, Cl_data_smooth, Cm_data_smooth, Cn_data_smooth],
             axis=-1
         )
 
@@ -244,7 +258,7 @@ class BuildupManager:
         sanitized_name = self.name.replace(" ", "_")
         self.static_interpolants = ca.interpolant(
             f'{sanitized_name}_CoeffsLookup',
-            'linear',  # bspline (or) linear
+            'bspline',  # bspline (or) linear
             grid_axes,
             coeffs_data_flat
         )

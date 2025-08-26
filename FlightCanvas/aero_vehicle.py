@@ -354,6 +354,14 @@ class AeroVehicle:
 
         nx = state.shape[0]
 
+        # Constraints
+        #quat_con = ca.norm_2(quat) - 1  # quaterion
+        #con_h_expr = ca.vertcat(
+        #    quat_con,
+        #)
+        #model.con_h_expr = con_h_expr
+        #model.con_h_expr_0 = con_h_expr
+
         v_dot, omega_dot, quat_dot = self._calculate_rigid_body_derivatives(state, deflections_true, g)
 
         f_expl_expr = ca.vertcat(vel_I, v_dot, quat_dot, omega_dot, deflections_state_dot)
@@ -440,12 +448,12 @@ class AeroVehicle:
             self._create_acados_model(True)
 
         N = 100
-        tf = 25
+        tf = 20
         dt = tf / N
         q_ref = utils.euler_to_quat((0, 0, 25))
 
         pos_0 = np.array([10, 0, 1000])  # Initial position
-        vel_0 = np.array([0, 0, -10])  # Initial velocity
+        vel_0 = np.array([0, 0, -30])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
         delta_0 = np.deg2rad(np.array([20, 20, 10, 10]))
@@ -474,7 +482,7 @@ class AeroVehicle:
         Q_omega = 5e1
         Q_pos = 1e1
         Q_quat = 2e2
-        R_controls = 1e0  # Very low weight on control effort
+        R_controls = 4e0  # Very low weight on control effort
 
         Q_diag = np.zeros(nx)
         Q_diag[0:2] = Q_pos
@@ -484,6 +492,7 @@ class AeroVehicle:
 
         # Create diagonal R matrix for control costs
         R_mat = np.diag(np.full(nu, R_controls))
+        #R_mat = np.diag(nu, R_controls))
 
         ocp.cost.W = scipy.linalg.block_diag(Q_mat, R_mat)
         ocp.cost.W_e = Q_mat
@@ -505,13 +514,33 @@ class AeroVehicle:
         ocp.constraints.lbx = np.deg2rad(np.array([5, 5, 5, 5]))
         ocp.constraints.ubx = np.deg2rad(np.array([80, 80, 80, 80]))
 
+        #lh = np.array([0])
+        #uh = np.array([0])
+
+        #ocp.constraints.lh = lh
+        #ocp.constraints.uh = uh
+        #ocp.constraints.lh_0 = lh
+        #ocp.constraints.uh_0 = uh
+
+        #soft_constraint_indices = [0]  # Removed index 2
+        #ocp.constraints.idxsh = np.array(soft_constraint_indices)
+        #ocp.constraints.idxsh_0 = np.array(soft_constraint_indices)
+
+        # --- Slack Variables for Soft Constraints ---
+        #num_soft_constraints = len(soft_constraint_indices)
+        #penalty_weight = 1e2
+        #ocp.cost.zl = penalty_weight * np.ones((num_soft_constraints,))
+        #ocp.cost.zu = penalty_weight * np.ones((num_soft_constraints,))
+        #ocp.cost.Zl = np.zeros_like(ocp.cost.zl)
+        #ocp.cost.Zu = np.zeros_like(ocp.cost.zu)
+
         # 5. Set Solver Options
         ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
         ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
         ocp.solver_options.integrator_type = 'IRK'
         ocp.solver_options.regularize_method = 'GERSHGORIN_LEVENBERG_MARQUARDT'
-        ocp.solver_options.levenberg_marquardt = 1e-1
-        ocp.solver_options.nlp_solver_type = 'SQP'
+        ocp.solver_options.levenberg_marquardt = 5e-2
+        ocp.solver_options.nlp_solver_type = 'SQP_RTI'
         ocp.solver_options.tf = tf
         #ocp.solver_options.fixed_hess = 1
 
@@ -525,21 +554,48 @@ class AeroVehicle:
             acados_ocp_solver.set(i, "u", init_u[:, i])
         acados_ocp_solver.set(N, "x", init_x[:, N])
 
+        simX = np.zeros((N, nx))
+        simU = np.zeros((N, nu))
+
+        xcurrent = x0.copy()
+        #acados_ocp_solver.reset()
+
         print("Solving OCP...")
-        status = acados_ocp_solver.solve()
-        acados_ocp_solver.print_statistics()
-        total_time = acados_ocp_solver.get_stats('time_tot')
-        print(f"Solver finished in {total_time * 1000:.3f} ms.")
-        print(f"Solver status: {status}")  # Should print 0
+
+        for i in range(N):
+            acados_ocp_solver.set(0, "lbx", xcurrent)
+            acados_ocp_solver.set(0, "ubx", xcurrent)
+
+            for _ in range(1):
+                status = acados_ocp_solver.solve()
+            if status != 0:
+                acados_ocp_solver.print_statistics()
+
+            u0 = acados_ocp_solver.get(0, "u")
+            xcurrent = acados_ocp_solver.get(1, "x")
+
+            simX[i, :] = xcurrent
+            simU[i, :] = u0
 
         cost_value = acados_ocp_solver.get_cost()
         print(f"\nFinal Cost Function Value: {cost_value}")
 
-        # 7. Extract and return the solution
         time_vec = np.linspace(0, tf, N)
-        sim_x = np.array([acados_ocp_solver.get(i, "x") for i in range(N + 1)])
-        sim_u = np.array([acados_ocp_solver.get(i, "u") for i in range(N)])
-        return time_vec, sim_x.T, sim_u.T
+        return time_vec, simX.T, simU.T
+
+        #status = acados_ocp_solver.solve()
+        #acados_ocp_solver.print_statistics()
+        #total_time = acados_ocp_solver.get_stats('time_tot')
+        #print(f"Solver finished in {total_time * 1000:.3f} ms.")
+        #print(f"Solver status: {status}")  # Should print 0
+
+
+
+        # 7. Extract and return the solution
+        #time_vec = np.linspace(0, tf, N)
+        #sim_x = np.array([acados_ocp_solver.get(i, "x") for i in range(N + 1)])
+        #sim_u = np.array([acados_ocp_solver.get(i, "u") for i in range(N)])
+        #return time_vec, sim_x.T, sim_u.T
 
 
     def init_buildup_manager(self):

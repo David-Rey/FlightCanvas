@@ -62,7 +62,7 @@ def _flat_plate_airfoil(thickness=0.01, n_points=100):
     return np.vstack([x_coords, y_coords]).T
 
 
-def model_body(height: float, diameter: float) -> AeroFuselage:
+def model_body(height: float, diameter: float, cg_x: float) -> AeroFuselage:
     """
     Returns an AeroSandbox Wing object (the flap) and its PyVista mesh.
     """
@@ -71,10 +71,8 @@ def model_body(height: float, diameter: float) -> AeroFuselage:
     end_cord = np.array([[height, nosecone_coords[-1, 1]], [height, 0]])
     nosecone_coords = np.vstack((nosecone_coords, end_cord))
 
-    k = 19.5  # remove me (for testing)
-
     fuselage_xsecs = [asb.FuselageXSec(
-        xyz_c=[x - k, 0, 0],  # Place the sections based on the nosecone coordinates
+        xyz_c=[x - cg_x, 0, 0],  # Place the sections based on the nosecone coordinates
         radius=z,  # Set a proportional radius for the fuselage
 
     )
@@ -84,7 +82,7 @@ def model_body(height: float, diameter: float) -> AeroFuselage:
     fuselage = AeroFuselage(
         name="Fuselage",
         xsecs=fuselage_xsecs,
-    ).translate([k, 0, 0])
+    ).translate([cg_x, 0, 0])
 
     return fuselage
 
@@ -92,8 +90,9 @@ def model_body(height: float, diameter: float) -> AeroFuselage:
 if __name__ == '__main__':
     height = 50
     diameter = 9
+    cg_x = 19.5
 
-    body = model_body(height, diameter)
+    body = model_body(height, diameter, cg_x)
 
     flap_airfoil = asb.Airfoil(coordinates=_flat_plate_airfoil(thickness=0.02))
 
@@ -181,7 +180,7 @@ if __name__ == '__main__':
 
     aero_vehicle = AeroVehicle(
         name="Starship",
-        xyz_ref=[19.5, 0, 0],  # Vehicle's Center of Gravity
+        xyz_ref=[cg_x, 0, 0],  # Vehicle's Center of Gravity
         components=all_components,
     )
     aero_vehicle.set_control_mapping(control_mapping)
