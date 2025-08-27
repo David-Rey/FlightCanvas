@@ -90,7 +90,7 @@ def model_body(height: float, diameter: float, cg_x: float) -> AeroFuselage:
 if __name__ == '__main__':
     height = 50
     diameter = 9
-    cg_x = 19.5
+    cg_x = 19
 
     body = model_body(height, diameter, cg_x)
 
@@ -178,12 +178,39 @@ if __name__ == '__main__':
         }
     }
 
+    control_mapping_2 = {
+        "pitch control": {
+            "Front Flap": 1.0,
+            "Front Flap Star": 1.0,
+            "Back Flap": -1.0,
+            "Back Flap Star": -1.0
+        },
+        "roll control": {
+            "Front Flap": 1.0,
+            "Front Flap Star": -1.0,
+            "Back Flap": 1.0,
+            "Back Flap Star": -1.0
+        },
+        "yaw control": {
+            "Front Flap": -1.0,
+            "Front Flap Star": 1.0,
+            "Back Flap": 1.0,
+            "Back Flap Star": -1.0
+        },
+        "drag control": {
+            "Front Flap": 1.0,
+            "Front Flap Star": 1.0,
+            "Back Flap": 1.0,
+            "Back Flap Star": 1.0
+        }
+    }
+
     aero_vehicle = AeroVehicle(
         name="Starship",
         xyz_ref=[cg_x, 0, 0],  # Vehicle's Center of Gravity
         components=all_components,
     )
-    aero_vehicle.set_control_mapping(control_mapping)
+    aero_vehicle.set_control_mapping(control_mapping_2)
 
     aero_vehicle.set_mass(95000)
     # MOI calculation

@@ -208,7 +208,7 @@ class BuildupManager:
         Cm_data = np.column_stack(self.asb_data_static["Cm"]).reshape(self.alpha_grid.shape)
         Cn_data = np.column_stack(self.asb_data_static["Cn"]).reshape(self.alpha_grid.shape)
 
-        sigma_to_tune = 2
+        sigma_to_tune = 4
         CL_data_smooth = scipy.ndimage.gaussian_filter(CL_data, sigma=sigma_to_tune)
         CY_data_smooth = scipy.ndimage.gaussian_filter(CY_data, sigma=sigma_to_tune)
         CD_data_smooth = scipy.ndimage.gaussian_filter(CD_data, sigma=sigma_to_tune)

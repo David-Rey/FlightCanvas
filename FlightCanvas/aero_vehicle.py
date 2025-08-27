@@ -452,11 +452,11 @@ class AeroVehicle:
         dt = tf / N
         q_ref = utils.euler_to_quat((0, 0, 25))
 
-        pos_0 = np.array([10, 0, 1000])  # Initial position
+        pos_0 = np.array([40, 0, 1000])  # Initial position
         vel_0 = np.array([0, 0, -30])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
-        delta_0 = np.deg2rad(np.array([20, 20, 10, 10]))
+        delta_0 = np.deg2rad(np.array([30, 30, 20, 20]))
         x0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, delta_0))
 
         ocp = AcadosOcp()
@@ -478,16 +478,20 @@ class AeroVehicle:
 
         ocp.cost.yref[7:10] = q_ref[1:]
         ocp.cost.yref_e[7:10] = q_ref[1:]
+        ocp.cost.yref[13:17] = np.deg2rad(np.array([30, 30, 20, 20]))
+        ocp.cost.yref_e[13:17] = np.deg2rad(np.array([30, 30, 20, 20]))
 
         Q_omega = 5e1
-        Q_pos = 1e1
+        Q_pos = 2e-1
         Q_quat = 2e2
-        R_controls = 4e0  # Very low weight on control effort
+        R_controls = 1e1  # Very low weight on control effort
+        Q_delta = 1e2
 
         Q_diag = np.zeros(nx)
         Q_diag[0:2] = Q_pos
         Q_diag[7:10] = Q_quat
         Q_diag[10:13] = Q_omega  # Weight on angular velocity
+        Q_diag[13:] = Q_delta
         Q_mat = np.diag(Q_diag)
 
         # Create diagonal R matrix for control costs
@@ -502,7 +506,7 @@ class AeroVehicle:
         ocp.cost.Vu[nx:, :nu] = np.eye(nu)
         ocp.cost.Vx_e = np.eye(nx)
 
-        max_rate_rad_s = np.deg2rad(20.0)  # e.g., 90 deg/s
+        max_rate_rad_s = np.deg2rad(15.0)
         min_rate_rad_s = -max_rate_rad_s
 
         ocp.constraints.idxbu = np.arange(nu)  # Constrain all control inputs
@@ -566,7 +570,7 @@ class AeroVehicle:
             acados_ocp_solver.set(0, "lbx", xcurrent)
             acados_ocp_solver.set(0, "ubx", xcurrent)
 
-            for _ in range(1):
+            for _ in range(2):
                 status = acados_ocp_solver.solve()
             if status != 0:
                 acados_ocp_solver.print_statistics()
