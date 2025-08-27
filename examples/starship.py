@@ -6,7 +6,7 @@ from scipy.interpolate import splprep, splev
 from FlightCanvas.actuators import FirstOrderDeflection, DirectDerivative
 from FlightCanvas.components.aero_fuselage import AeroFuselage
 from FlightCanvas.aero_vehicle import AeroVehicle
-from FlightCanvas.components.aero_wing import create_planar_wing_pair, AeroWing
+from FlightCanvas.components.aero_wing import create_planar_wing_pair
 
 from FlightCanvas import utils
 from FlightCanvas.open_loop_control import OpenLoopControl
