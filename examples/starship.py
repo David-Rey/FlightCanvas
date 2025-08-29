@@ -242,11 +242,11 @@ if __name__ == '__main__':
         vel_0 = np.array([0, 0, -1])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, -30))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
-        delta_0 = np.deg2rad(np.array([20, 20, 10, 10]))
+        delta_0 = np.deg2rad(np.array([20, 20, 20, 20]))
         tf = 30
 
         t_arr, x_arr, u_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf,
-                            casadi=True, open_loop_control=controls, gravity=True)
+                            casadi=False, open_loop_control=None, gravity=True)
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
         aero_vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
     elif switcher == 1:

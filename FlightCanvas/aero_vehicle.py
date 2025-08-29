@@ -275,12 +275,14 @@ class AeroVehicle:
             array_func = ca.MX
             dir_cosine_func = utils.dir_cosine_ca
             omega_matrix_func = utils.omega_ca
+            sumsqr = ca.sumsqr
         else:
             inv_func = np.linalg.inv
             cross_func = np.cross
             array_func = np.array
             dir_cosine_func = utils.dir_cosine_np
             omega_matrix_func = utils.omega
+            sumsqr = lambda x: np.sum(np.square(x))
 
         # Calculate external forces and moments as function
         F_B, M_B = self.compute_forces_and_moments(state, deflections_true)
@@ -297,11 +299,17 @@ class AeroVehicle:
         # get moment of inertia
         J_B = array_func(self.moi)
 
-        # angular acceleration based on conservation of momentum
-        omega_dot = inv_func(J_B) @ (M_B - cross_func(omega_B, J_B @ omega_B))
+        k_gain = 10
+        q_norm_sq = sumsqr(quat)
+        e_norm = q_norm_sq - 1
+
+        quat_dot_correction = -k_gain * e_norm * quat
 
         # angular rate calculation
-        quat_dot = 0.5 * (omega_matrix_func(omega_B) @ quat)
+        quat_dot = 0.5 * (omega_matrix_func(omega_B) @ quat) + quat_dot_correction
+
+        # angular acceleration based on conservation of momentum
+        omega_dot = inv_func(J_B) @ (M_B - cross_func(omega_B, J_B @ omega_B))
 
         return v_dot, omega_dot, quat_dot
 
@@ -449,14 +457,14 @@ class AeroVehicle:
 
         SWIL = True
 
-        N = 80
-        tf = 20
+        N = 40
+        tf = 10
         dt = tf / N
 
         q_ref = utils.euler_to_quat((0, 0, 0))
         q_temp = utils.euler_to_quat((0, 12, 0))
 
-        pos_0 = np.array([-300, 0, 1100])  # Initial position
+        pos_0 = np.array([-1000, 0, 1100])  # Initial position
         vel_0 = np.array([0, 0, -30])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 25))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
@@ -537,7 +545,7 @@ class AeroVehicle:
 
         # --- Slack Variables for Soft Constraints ---
         num_soft_constraints = len(soft_constraint_indices)
-        penalty_weight = 1e3
+        penalty_weight = 1e5
         ocp.cost.zl = penalty_weight * np.ones((num_soft_constraints,))
         ocp.cost.zu = penalty_weight * np.ones((num_soft_constraints,))
         ocp.cost.Zl = np.zeros_like(ocp.cost.zl)
@@ -572,7 +580,7 @@ class AeroVehicle:
         if SWIL:
             print("Solving OCP In the Loop...")
 
-            for i in range(N):
+            for i in range(Nsim):
                 acados_ocp_solver.set(0, "lbx", xcurrent)
                 acados_ocp_solver.set(0, "ubx", xcurrent)
 
@@ -583,6 +591,11 @@ class AeroVehicle:
 
                 u0 = acados_ocp_solver.get(0, "u")
                 xcurrent = acados_ocp_solver.get(1, "x")
+
+                quat = xcurrent[7:11]
+                quat_norm = np.linalg.norm(quat)
+                if quat_norm > 1e-6:  # Avoid division by zero
+                    xcurrent[7:11] = quat / quat_norm
 
                 simX[i, :] = xcurrent
                 simU[i, :] = u0
