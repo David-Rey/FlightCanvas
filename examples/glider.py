@@ -5,7 +5,7 @@ import aerosandbox.numpy as np
 
 from FlightCanvas.components.aero_fuselage import AeroFuselage
 from FlightCanvas.components.aero_wing import create_planar_wing_pair, AeroWing
-from FlightCanvas.aero_vehicle import AeroVehicle
+from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 
 from FlightCanvas import utils
 

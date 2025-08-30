@@ -9,7 +9,7 @@ import casadi as ca
 import pyvista as pv
 from scipy.integrate import solve_ivp
 
-from FlightCanvas.actuator_dynamics import ActuatorDynamics
+from FlightCanvas.actuators.actuator_dynamics import ActuatorDynamics
 
 try:
     from acados_template import AcadosModel, AcadosOcp, AcadosSim, AcadosSimSolver, AcadosOcpSolver
@@ -20,7 +20,7 @@ except ImportError:
 # Local application imports
 from FlightCanvas import utils
 from FlightCanvas.components.aero_component import AeroComponent
-from FlightCanvas.open_loop_control import OpenLoopControl
+from FlightCanvas.control.open_loop_control import OpenLoopControl
 
 
 class AeroVehicle:
@@ -275,14 +275,12 @@ class AeroVehicle:
             array_func = ca.MX
             dir_cosine_func = utils.dir_cosine_ca
             omega_matrix_func = utils.omega_ca
-            sumsqr = ca.sumsqr
         else:
             inv_func = np.linalg.inv
             cross_func = np.cross
             array_func = np.array
             dir_cosine_func = utils.dir_cosine_np
             omega_matrix_func = utils.omega
-            sumsqr = lambda x: np.sum(np.square(x))
 
         # Calculate external forces and moments as function
         F_B, M_B = self.compute_forces_and_moments(state, deflections_true)
@@ -299,14 +297,14 @@ class AeroVehicle:
         # get moment of inertia
         J_B = array_func(self.moi)
 
-        k_gain = 10
-        q_norm_sq = sumsqr(quat)
-        e_norm = q_norm_sq - 1
+        #k_gain = 10
+        #q_norm_sq = sumsqr(quat)
+        #e_norm = q_norm_sq - 1
 
-        quat_dot_correction = -k_gain * e_norm * quat
+        #quat_dot_correction = -k_gain * e_norm * quat
 
         # angular rate calculation
-        quat_dot = 0.5 * (omega_matrix_func(omega_B) @ quat) + quat_dot_correction
+        quat_dot = 0.5 * (omega_matrix_func(omega_B) @ quat) #+ quat_dot_correction
 
         # angular acceleration based on conservation of momentum
         omega_dot = inv_func(J_B) @ (M_B - cross_func(omega_B, J_B @ omega_B))
@@ -363,12 +361,12 @@ class AeroVehicle:
         nx = state.shape[0]
 
         # Constraints
-        quat_con = ca.norm_2(quat) - 1  # quaterion
-        con_h_expr = ca.vertcat(
-            quat_con,
-        )
-        model.con_h_expr = con_h_expr
-        model.con_h_expr_0 = con_h_expr
+        #quat_con = ca.norm_2(quat) - 1  # quaterion
+        #con_h_expr = ca.vertcat(
+        #    quat_con,
+        #)
+        #model.con_h_expr = con_h_expr
+        #model.con_h_expr_0 = con_h_expr
 
         v_dot, omega_dot, quat_dot = self._calculate_rigid_body_derivatives(state, deflections_true, g)
 
@@ -455,18 +453,14 @@ class AeroVehicle:
         if self.acados_model is None:
             self._create_acados_model(True)
 
-        SWIL = True
-
-        N = 40
+        N = 50
         tf = 10
         dt = tf / N
+        q_ref = utils.euler_to_quat((0, 0, 25))
 
-        q_ref = utils.euler_to_quat((0, 0, 0))
-        q_temp = utils.euler_to_quat((0, 12, 0))
-
-        pos_0 = np.array([-1000, 0, 1100])  # Initial position
+        pos_0 = np.array([40, 0, 1000])  # Initial position
         vel_0 = np.array([0, 0, -30])  # Initial velocity
-        quat_0 = utils.euler_to_quat((0, 0, 25))
+        quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
         delta_0 = np.deg2rad(np.array([30, 30, 20, 20]))
         x0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, delta_0))
@@ -495,7 +489,7 @@ class AeroVehicle:
 
         Q_omega = 5e1
         Q_pos = 2e-1
-        Q_quat = 4e2
+        Q_quat = 2e2
         R_controls = 1e1  # Very low weight on control effort
         Q_delta = 1e2
 
@@ -526,30 +520,29 @@ class AeroVehicle:
         ocp.constraints.ubu = np.full(nu, max_rate_rad_s)
 
         ocp.constraints.x0 = x0
-        ocp.constraints.idxbx = np.array([8, 13, 14, 15, 16])
-        ocp.constraints.lbx = np.concatenate((np.array([-q_temp[2]]) ,np.deg2rad([5, 5, 15, 15])))
-        ocp.constraints.ubx = np.concatenate((np.array([q_temp[2]]) ,np.deg2rad([80, 80, 90, 90])))
+        ocp.constraints.idxbx = np.array([13, 14, 15, 16])
+        ocp.constraints.lbx = np.deg2rad(np.array([5, 5, 5, 5]))
+        ocp.constraints.ubx = np.deg2rad(np.array([80, 80, 80, 80]))
 
+        #lh = np.array([0])
+        #uh = np.array([0])
 
-        lh = np.array([0])
-        uh = np.array([0])
+        #ocp.constraints.lh = lh
+        #ocp.constraints.uh = uh
+        #ocp.constraints.lh_0 = lh
+        #ocp.constraints.uh_0 = uh
 
-        ocp.constraints.lh = lh
-        ocp.constraints.uh = uh
-        ocp.constraints.lh_0 = lh
-        ocp.constraints.uh_0 = uh
-
-        soft_constraint_indices = [0]  # Removed index 2
-        ocp.constraints.idxsh = np.array(soft_constraint_indices)
-        ocp.constraints.idxsh_0 = np.array(soft_constraint_indices)
+        #soft_constraint_indices = [0]  # Removed index 2
+        #ocp.constraints.idxsh = np.array(soft_constraint_indices)
+        #ocp.constraints.idxsh_0 = np.array(soft_constraint_indices)
 
         # --- Slack Variables for Soft Constraints ---
-        num_soft_constraints = len(soft_constraint_indices)
-        penalty_weight = 1e5
-        ocp.cost.zl = penalty_weight * np.ones((num_soft_constraints,))
-        ocp.cost.zu = penalty_weight * np.ones((num_soft_constraints,))
-        ocp.cost.Zl = np.zeros_like(ocp.cost.zl)
-        ocp.cost.Zu = np.zeros_like(ocp.cost.zu)
+        #num_soft_constraints = len(soft_constraint_indices)
+        #penalty_weight = 1e2
+        #ocp.cost.zl = penalty_weight * np.ones((num_soft_constraints,))
+        #ocp.cost.zu = penalty_weight * np.ones((num_soft_constraints,))
+        #ocp.cost.Zl = np.zeros_like(ocp.cost.zl)
+        #ocp.cost.Zu = np.zeros_like(ocp.cost.zu)
 
         # 5. Set Solver Options
         ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
@@ -557,11 +550,9 @@ class AeroVehicle:
         ocp.solver_options.integrator_type = 'IRK'
         ocp.solver_options.regularize_method = 'GERSHGORIN_LEVENBERG_MARQUARDT'
         ocp.solver_options.levenberg_marquardt = 5e-2
-        if SWIL:
-            ocp.solver_options.nlp_solver_type = 'SQP_RTI'
-        else:
-            ocp.solver_options.nlp_solver_type = 'SQP'
+        ocp.solver_options.nlp_solver_type = 'SQP_RTI'
         ocp.solver_options.tf = tf
+        #ocp.solver_options.fixed_hess = 1
 
         # 6. Create and Solve
         print("Creating OCP solver...")
@@ -577,46 +568,29 @@ class AeroVehicle:
         simU = np.zeros((N, nu))
 
         xcurrent = x0.copy()
-        if SWIL:
-            print("Solving OCP In the Loop...")
+        #acados_ocp_solver.reset()
 
-            for i in range(Nsim):
-                acados_ocp_solver.set(0, "lbx", xcurrent)
-                acados_ocp_solver.set(0, "ubx", xcurrent)
+        print("Solving OCP...")
 
-                for _ in range(2):
-                    status = acados_ocp_solver.solve()
-                if status != 0:
-                    acados_ocp_solver.print_statistics()
+        for i in range(N):
+            acados_ocp_solver.set(0, "lbx", xcurrent)
+            acados_ocp_solver.set(0, "ubx", xcurrent)
 
-                u0 = acados_ocp_solver.get(0, "u")
-                xcurrent = acados_ocp_solver.get(1, "x")
+            for _ in range(2):
+                status = acados_ocp_solver.solve()
+            if status != 0:
+                acados_ocp_solver.print_statistics()
 
-                quat = xcurrent[7:11]
-                quat_norm = np.linalg.norm(quat)
-                if quat_norm > 1e-6:  # Avoid division by zero
-                    xcurrent[7:11] = quat / quat_norm
+            u0 = acados_ocp_solver.get(0, "u")
+            xcurrent = acados_ocp_solver.get(1, "x")
 
-                simX[i, :] = xcurrent
-                simU[i, :] = u0
+            simX[i, :] = xcurrent
+            simU[i, :] = u0
 
-            cost_value = acados_ocp_solver.get_cost()
-            print(f"\nFinal Cost Function Value: {cost_value}")
+        cost_value = acados_ocp_solver.get_cost()
+        print(f"\nFinal Cost Function Value: {cost_value}")
 
-            time_vec = np.linspace(0, tf, N)
-        else:
-            status = acados_ocp_solver.solve()
-            acados_ocp_solver.print_statistics()
-            time_vec = np.linspace(0, tf, N)
-            simX = np.array([acados_ocp_solver.get(i, "x") for i in range(N + 1)])
-            simU = np.array([acados_ocp_solver.get(i, "u") for i in range(N)])
-
-            cost_value = acados_ocp_solver.get_cost()
-            print(f"\nFinal Cost Function Value: {cost_value}")
-
-            total_time = acados_ocp_solver.get_stats('time_tot')
-            print(f"Solver finished in {total_time * 1000:.3f} ms.")
-            print(f"Solver status: {status}")  # Should print 0
+        time_vec = np.linspace(0, tf, N)
         return time_vec, simX.T, simU.T
 
 
@@ -741,7 +715,7 @@ class AeroVehicle:
         num_frames = int(np.floor(t_arr[-1] * fps))
 
         # output location
-        video_filename = '../animation.mp4'
+        video_filename = '../../animation.mp4'
 
         # start movie
         self.pl.open_movie(video_filename, framerate=fps, quality=9)

@@ -3,13 +3,11 @@ import aerosandbox.numpy as np
 
 from scipy.interpolate import splprep, splev
 
-from FlightCanvas.actuators import ActuatorModel, FirstOrderDeflection
 from FlightCanvas.components.aero_fuselage import AeroFuselage
-from FlightCanvas.aero_vehicle import AeroVehicle
-from FlightCanvas.components.aero_wing import create_planar_wing_pair, AeroWing
+from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 
 from FlightCanvas import utils
-from FlightCanvas.open_loop_control import OpenLoopControl
+
 
 def _smooth_path(points, smoothing_factor=0, n_points=500):
     tck, u = splprep(points.T, s=smoothing_factor)

@@ -4,7 +4,7 @@ import aerosandbox as asb
 import aerosandbox.numpy as np
 
 from FlightCanvas.components.aero_wing import create_axial_wing_pair
-from FlightCanvas.aero_vehicle import AeroVehicle
+from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 from FlightCanvas import utils
 
 if __name__ == '__main__':

@@ -8,7 +8,7 @@ import numpy as np
 import pyvista as pv
 
 from FlightCanvas import utils
-from FlightCanvas.actuators import ActuatorModel
+from FlightCanvas.actuators.actuators import ActuatorModel
 from FlightCanvas.buildup_manager import BuildupManager
 
 

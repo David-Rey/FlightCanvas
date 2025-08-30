@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Optional
+from typing import Optional
 from abc import ABC, abstractmethod
 import casadi as ca
 import matplotlib.pyplot as plt

@@ -6,7 +6,7 @@ import aerosandbox.numpy as np
 
 from .aero_component import AeroComponent
 from FlightCanvas import utils
-from FlightCanvas.actuators import ActuatorModel
+from FlightCanvas.actuators.actuators import ActuatorModel
 
 
 class AeroWing(AeroComponent):

@@ -81,71 +81,6 @@ def make_symbolic_smooth_spline_simple(n_waypoints, n_output_points=100, smoothn
     return spline_func
 
 
-def create_spline_arc_length_function(n_waypoints, n_spline_points=100, smoothness=0.3):
-    """
-    Creates a function that returns the arc length along the spline path
-    where the closest point to the query occurs.
-
-    Returns:
-        CasADi Function: f(xq, yq, waypoints) -> arc_length_at_closest_point
-    """
-
-    # Step 1: Generate smooth spline points
-    spline_generator = make_symbolic_smooth_spline_simple(n_waypoints, n_spline_points, smoothness)
-
-    # Symbolic inputs
-    xq = ca.MX.sym("xq")
-    yq = ca.MX.sym("yq")
-    waypoints = ca.MX.sym("waypoints", 2, n_waypoints)
-    query_point = ca.vertcat(xq, yq)
-
-    # Generate smooth spline points
-    smooth_points = spline_generator(waypoints)
-
-    # Step 2: Calculate cumulative arc lengths along the spline
-    arc_lengths = [0]  # Start with 0 arc length
-    for i in range(n_spline_points - 1):
-        p1 = smooth_points[:, i]
-        p2 = smooth_points[:, i + 1]
-        segment_length = ca.norm_2(p2 - p1)
-        arc_lengths.append(arc_lengths[-1] + segment_length)
-
-    # Step 3: Find closest point and return its arc length
-    closest_arc_length = arc_lengths[0]
-    min_distance = ca.inf
-
-    for i in range(n_spline_points - 1):
-        p1 = smooth_points[:, i]
-        p2 = smooth_points[:, i + 1]
-        v = p2 - p1
-        w = query_point - p1
-
-        v_dot_v = ca.dot(v, v)
-        t = ca.if_else(v_dot_v > 1e-12, ca.dot(w, v) / v_dot_v, 0)
-        t_clamped = ca.fmax(0, ca.fmin(1, t))
-
-        closest_point = p1 + t_clamped * v
-        dist = ca.norm_2(query_point - closest_point)
-
-        # Arc length at this closest point
-        arc_length_at_closest = arc_lengths[i] + t_clamped * ca.norm_2(v)
-
-        # Update if this is the closest point so far
-        is_closer = dist < min_distance
-        closest_arc_length = ca.if_else(is_closer, arc_length_at_closest, closest_arc_length)
-        min_distance = ca.if_else(is_closer, dist, min_distance)
-
-    arc_length_func = ca.Function(
-        "spline_arc_length",
-        [xq, yq, waypoints],
-        [closest_arc_length],
-        ["xq", "yq", "waypoints"],
-        ["arc_length"]
-    )
-
-    return arc_length_func
-
-
 def create_combined_spline_functions(n_waypoints, n_spline_points=100, smoothness=0.3):
     """
     Creates both distance and arc length functions in one go for efficiency
@@ -222,7 +157,7 @@ if __name__ == "__main__":
 
     print("Creating arc length function...")
     distance_func, arc_length_func, total_length_func = create_combined_spline_functions(
-        n_waypoints=4, n_spline_points=100, smoothness=smoothness
+        n_waypoints=4, n_spline_points=50, smoothness=smoothness
     )
 
     # Test the functions
@@ -385,4 +320,67 @@ if __name__ == "__main__":
 
     #return distance_func, arc_length_func, total_length_func
 
-# Example usage
+
+#def create_spline_arc_length_function(n_waypoints, n_spline_points=100, smoothness=0.3):
+#    """
+#    Creates a function that returns the arc length along the spline path
+#    where the closest point to the query occurs.
+#
+#    Returns:
+#        CasADi Function: f(xq, yq, waypoints) -> arc_length_at_closest_point
+#    """
+#
+#    # Step 1: Generate smooth spline points
+#    spline_generator = make_symbolic_smooth_spline_simple(n_waypoints, n_spline_points, smoothness)
+#
+#    # Symbolic inputs
+#    xq = ca.MX.sym("xq")
+#    yq = ca.MX.sym("yq")
+#    waypoints = ca.MX.sym("waypoints", 2, n_waypoints)
+#    query_point = ca.vertcat(xq, yq)
+#
+#    # Generate smooth spline points
+#    smooth_points = spline_generator(waypoints)
+#
+#    # Step 2: Calculate cumulative arc lengths along the spline
+#    arc_lengths = [0]  # Start with 0 arc length
+#    for i in range(n_spline_points - 1):
+#        p1 = smooth_points[:, i]
+#        p2 = smooth_points[:, i + 1]
+#        segment_length = ca.norm_2(p2 - p1)
+#        arc_lengths.append(arc_lengths[-1] + segment_length)
+#
+#    # Step 3: Find closest point and return its arc length
+#    closest_arc_length = arc_lengths[0]
+#    min_distance = ca.inf
+#
+#    for i in range(n_spline_points - 1):
+#        p1 = smooth_points[:, i]
+#        p2 = smooth_points[:, i + 1]
+#        v = p2 - p1
+#        w = query_point - p1
+#
+#        v_dot_v = ca.dot(v, v)
+#        t = ca.if_else(v_dot_v > 1e-12, ca.dot(w, v) / v_dot_v, 0)
+#        t_clamped = ca.fmax(0, ca.fmin(1, t))
+#
+#        closest_point = p1 + t_clamped * v
+#        dist = ca.norm_2(query_point - closest_point)
+#
+#        # Arc length at this closest point
+#        arc_length_at_closest = arc_lengths[i] + t_clamped * ca.norm_2(v)
+#
+#        # Update if this is the closest point so far
+#        is_closer = dist < min_distance
+#        closest_arc_length = ca.if_else(is_closer, arc_length_at_closest, closest_arc_length)
+#        min_distance = ca.if_else(is_closer, dist, min_distance)
+#
+#    arc_length_func = ca.Function(
+#        "spline_arc_length",
+#        [xq, yq, waypoints],
+#        [closest_arc_length],
+#        ["xq", "yq", "waypoints"],
+#        ["arc_length"]
+#    )
+#
+#    return arc_length_func

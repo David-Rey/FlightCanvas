@@ -7,6 +7,9 @@ import casadi as ca
 
 @dataclass
 class ActuatorData:
+    """
+    Holds actuator data including component data, ordering and dynamics
+    """
     component_id: int
     component_name: str
     control_index: Optional[int]
@@ -171,7 +174,7 @@ if __name__ == "__main__":
 
     from scipy.interpolate import splprep, splev
 
-    from FlightCanvas.actuators import FirstOrderDeflection, SecondOrderDeflection
+    from FlightCanvas.actuators.actuators import FirstOrderDeflection, SecondOrderDeflection
     from FlightCanvas.components.aero_fuselage import AeroFuselage
     from FlightCanvas.components.aero_wing import create_planar_wing_pair
 

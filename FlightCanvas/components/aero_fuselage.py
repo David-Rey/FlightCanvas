@@ -1,13 +1,12 @@
 # aero_project/FlightCanvas/aero_fuselage.py
 
-from typing import List, Union
 import aerosandbox as asb
 import numpy as np
 
 from .aero_component import AeroComponent
 from FlightCanvas import utils
-from FlightCanvas.actuators import ActuatorModel
-from typing import Optional, Union, List, Tuple
+from FlightCanvas.actuators.actuators import ActuatorModel
+from typing import Optional, Union, List
 
 
 class AeroFuselage(AeroComponent):
