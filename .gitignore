@@ -1,6 +1,11 @@
 *.pyc
 *.idea
 *.json
+*.c
+*.h
+*.pxd
+*.o
+*.so
 animation.mp4
 vehicle_saves
 tests/export
