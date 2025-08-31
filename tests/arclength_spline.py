@@ -150,14 +150,15 @@ def create_combined_spline_functions(n_waypoints, n_spline_points=100, smoothnes
 
 # Example usage and visualization
 if __name__ == "__main__":
-    waypoints = np.array([[0, 1, 2, 2],
-                          [0, 2, -2, -6]])
+    waypoints = np.array([[1, 2, 2, 0],
+                          [2, 0, -2, 2]])
+    n_waypoints = waypoints.shape[1]
 
     smoothness = 0.1
 
     print("Creating arc length function...")
     distance_func, arc_length_func, total_length_func = create_combined_spline_functions(
-        n_waypoints=4, n_spline_points=50, smoothness=smoothness
+        n_waypoints=n_waypoints, n_spline_points=50, smoothness=smoothness
     )
 
     # Test the functions
@@ -183,8 +184,8 @@ if __name__ == "__main__":
     print("\nCreating arc length visualization...")
 
     # Create grid
-    x_min, x_max = -1, 4
-    y_min, y_max = -7, 4
+    x_min, x_max = -1, 3
+    y_min, y_max = -3, 4
     resolution = 100
 
     x_grid = np.linspace(x_min, x_max, resolution)
@@ -216,7 +217,7 @@ if __name__ == "__main__":
     plt.colorbar(contour2, ax=axes[1], label='Distance to Path')
 
     # Add spline path to all plots
-    spline_gen = make_symbolic_smooth_spline_simple(4, 100, smoothness)
+    spline_gen = make_symbolic_smooth_spline_simple(n_waypoints, 100, smoothness)
     spline_result = spline_gen(waypoints)
     spline_points = np.array(spline_result).T
 

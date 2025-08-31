@@ -78,7 +78,7 @@ class Starship:
         self.vehicle.init_vehicle_dynamics()
 
         # Define OptimalController
-        self.controller = OptimalController(self.vehicle)
+        self.controller = StarshipController(self.vehicle)
 
         # Create Visualizer
         self.visualizer = VehicleVisualizer(self.vehicle)
