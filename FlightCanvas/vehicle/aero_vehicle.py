@@ -7,7 +7,6 @@ import scipy.linalg
 import aerosandbox.numpy as np
 import casadi as ca
 import pyvista as pv
-from scipy.integrate import solve_ivp
 
 from FlightCanvas.actuators.actuator_dynamics import ActuatorDynamics
 from FlightCanvas.vehicle.vehicle_dynamics import VehicleDynamics

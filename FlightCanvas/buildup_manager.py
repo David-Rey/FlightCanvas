@@ -208,6 +208,7 @@ class BuildupManager:
         Cm_data = np.column_stack(self.asb_data_static["Cm"]).reshape(self.alpha_grid.shape)
         Cn_data = np.column_stack(self.asb_data_static["Cn"]).reshape(self.alpha_grid.shape)
 
+        # TODO move this to the save buildup
         sigma_to_tune = 4
         CL_data_smooth = scipy.ndimage.gaussian_filter(CL_data, sigma=sigma_to_tune)
         CY_data_smooth = scipy.ndimage.gaussian_filter(CY_data, sigma=sigma_to_tune)
@@ -215,11 +216,6 @@ class BuildupManager:
         Cl_data_smooth = scipy.ndimage.gaussian_filter(Cl_data, sigma=sigma_to_tune)
         Cm_data_smooth = scipy.ndimage.gaussian_filter(Cm_data, sigma=sigma_to_tune)
         Cn_data_smooth = scipy.ndimage.gaussian_filter(Cn_data, sigma=sigma_to_tune)
-
-        #self.stacked_coeffs_data_static = np.stack(
-        #    [CL_data, CY_data, CD_data, Cl_data, Cm_data, Cn_data],
-        #    axis=-1
-        #)
 
         # Stack the 2D grids into a single 3D data array and store it
         self.stacked_coeffs_data_static = np.stack(

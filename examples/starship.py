@@ -14,9 +14,18 @@ from typing import Dict, List
 
 from FlightCanvas import utils
 
-#class StarshipController(OptimalController):
-#    def __init__(self):
-#        super().__init__()
+class StarshipController(OptimalController):
+    def __init__(self, vehicle: AeroVehicle):
+        super().__init__(vehicle)
+
+        self.vehicle = vehicle
+
+
+
+    def compute_control_input(self, t: float, state: np.ndarray) -> np.ndarray:
+        pass
+
+
 
 class Starship:
     """
@@ -69,7 +78,7 @@ class Starship:
         self.vehicle.init_vehicle_dynamics()
 
         # Define OptimalController
-        #self.controller = OptimalController(self.vehicle)
+        self.controller = OptimalController(self.vehicle)
 
         # Create Visualizer
         self.visualizer = VehicleVisualizer(self.vehicle)
