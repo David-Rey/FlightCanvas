@@ -97,12 +97,12 @@ class VehicleDynamics:
         """
         if casadi:
             # Call the CasADi-specific simulation function
-            return self._run_sim_acados(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, open_loop_control)
+            return self.run_sim_acados(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, open_loop_control)
         else:
             # Call the SciPy/NumPy-specific simulation function
-            return self._run_sim_scipy(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, print_debug, open_loop_control)
+            return self.run_sim_scipy(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, print_debug, open_loop_control)
 
-    def _run_sim_scipy(
+    def run_sim_scipy(
         self,
         pos_0: np.ndarray,
         vel_0: np.ndarray,
@@ -233,7 +233,7 @@ class VehicleDynamics:
 
         return v_dot, omega_dot, quat_dot
 
-    def _run_sim_acados(
+    def run_sim_acados(
         self,
         pos_0: np.ndarray,
         vel_0: np.ndarray,
