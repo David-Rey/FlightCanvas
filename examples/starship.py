@@ -12,9 +12,11 @@ from FlightCanvas.vehicle.vehicle_visualizer import VehicleVisualizer
 
 from typing import Dict, List
 
-class StarshipController(OptimalController):
-    def __init__(self):
-        super().__init__()
+from FlightCanvas import utils
+
+#class StarshipController(OptimalController):
+#    def __init__(self):
+#        super().__init__()
 
 class Starship:
     """
@@ -56,7 +58,15 @@ class Starship:
 
         # Load pre-computed aerodynamic data
         print("Loading aerodynamic buildup data...")
-        self.vehicle.load_buildup()
+        try:
+            self.vehicle.load_buildup()
+        except FileNotFoundError:
+            print("Build up data not found. Creating new aerodynamic buildup data...")
+            self.vehicle.compute_buildup()
+            self.vehicle.save_buildup()
+
+        # Define vehicle dynamics
+        self.vehicle.init_vehicle_dynamics()
 
         # Define OptimalController
         #self.controller = OptimalController(self.vehicle)
@@ -145,26 +155,26 @@ class Starship:
             "pitch control": {
                 "Front Flap": 1.0,
                 "Front Flap Star": 1.0,
-                "Back Flap": -1.0,
-                "Back Flap Star": -1.0
+                "Aft Flap": -1.0,
+                "Aft Flap Star": -1.0
             },
             "roll control": {
                 "Front Flap": 1.0,
                 "Front Flap Star": -1.0,
-                "Back Flap": 1.0,
-                "Back Flap Star": -1.0
+                "Aft Flap": 1.0,
+                "Aft Flap Star": -1.0
             },
             "yaw control": {
                 "Front Flap": -1.0,
                 "Front Flap Star": 1.0,
-                "Back Flap": 1.0,
-                "Back Flap Star": -1.0
+                "Aft Flap": 1.0,
+                "Aft Flap Star": -1.0
             },
             "drag control": {
                 "Front Flap": 1.0,
                 "Front Flap Star": 1.0,
-                "Back Flap": 1.0,
-                "Back Flap Star": 1.0
+                "Aft Flap": 1.0,
+                "Aft Flap Star": 1.0
             }
         }
 
@@ -194,9 +204,29 @@ class Starship:
         y_coords = np.concatenate([y_upper, y_lower[::-1]])
         return np.vstack([x_coords, y_coords]).T
 
+    def run_ocp(self):
+        t_arr, x_arr, u_arr = self.vehicle.run_ocp()
+        self.vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
+        self.vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
+
+    def run_sim(self):
+        pos_0 = np.array([0, 0, 1000])  # Initial position
+        vel_0 = np.array([0, 0, -1])  # Initial velocity
+        quat_0 = utils.euler_to_quat((0, 0, -30))
+        omega_0 = np.array([0, 0, 0])  # Initial angular velocity
+        delta_0 = np.deg2rad(np.array([20, 20, 20, 20]))
+        tf = 30
+
+        t_arr, x_arr, u_arr = self.vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf,
+                            casadi=True, open_loop_control=None, gravity=True)
+        self.vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
+        self.vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
+
 if __name__ == '__main__':
     # Create an instance of the entire Starship model
     starship = Starship()
+    #starship.compute_buildup()
+    starship.run_sim()
 
 
 

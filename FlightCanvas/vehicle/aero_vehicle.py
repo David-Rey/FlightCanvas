@@ -10,6 +10,7 @@ import pyvista as pv
 from scipy.integrate import solve_ivp
 
 from FlightCanvas.actuators.actuator_dynamics import ActuatorDynamics
+from FlightCanvas.vehicle.vehicle_dynamics import VehicleDynamics
 
 try:
     from acados_template import AcadosModel, AcadosOcp, AcadosSim, AcadosSimSolver, AcadosOcpSolver
@@ -49,7 +50,9 @@ class AeroVehicle:
 
         self.actuator_dynamics = None
 
-        self.acados_model = None
+        self.vehicle_dynamics = None
+
+        self.controller = None
 
         self.vehicle_path = f'vehicle_saves/{self.name}'
 
@@ -105,6 +108,11 @@ class AeroVehicle:
         """
         self.actuator_dynamics = ActuatorDynamics(self.components, control_mapping)
 
+    def init_vehicle_dynamics(self):
+        """
+        Creates dynamics in the form x_dot = f(t, x, u)
+        """
+        self.vehicle_dynamics = VehicleDynamics(self.mass, self.moi, self.components, self.actuator_dynamics)
 
     def compute_forces_and_moments(
         self,
@@ -167,12 +175,14 @@ class AeroVehicle:
         :param open_loop_control: Open loop control object that commands the aero vehicle
         :return: The time and state for every simulation step
         """
-        if casadi:
-            # Call the CasADi-specific simulation function
-            return self._run_sim_casadi(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, open_loop_control)
-        else:
-            # Call the SciPy/NumPy-specific simulation function
-            return self._run_sim_scipy(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, print_debug, open_loop_control)
+        return self.vehicle_dynamics.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, casadi, print_debug, open_loop_control)
+
+        #if casadi:
+        #    # Call the CasADi-specific simulation function
+        #    return self._run_sim_casadi(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, open_loop_control)
+        #else:
+        #    # Call the SciPy/NumPy-specific simulation function
+        #    return self._run_sim_scipy(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, print_debug, open_loop_control)
 
     def _run_sim_scipy(
         self,
@@ -211,7 +221,7 @@ class AeroVehicle:
                     for i in self.actuator_dynamics.deflection_indices
                 ])
                 if open_loop_control is not None:
-                    control_inputs = open_loop_control.get_u(t)
+                    control_inputs = open_loop_control.compute_control_input(t)
                     deflections_state_dot = self.actuator_dynamics.get_dynamics(deflections_state, control_inputs)
                 else:
                     deflections_state_dot = np.zeros(len(deflections_state))
@@ -243,7 +253,7 @@ class AeroVehicle:
         # Get control
         u_values = np.zeros((num_control_inputs, num_points))
         if open_loop_control is not None:
-            u_values = np.array([open_loop_control.get_u(t) for t in solution['t']]).T
+            u_values = np.array([open_loop_control.compute_control_input(t) for t in solution['t']]).T
 
         return solution['t'], solution['y'], u_values
 
@@ -296,12 +306,6 @@ class AeroVehicle:
 
         # get moment of inertia
         J_B = array_func(self.moi)
-
-        #k_gain = 10
-        #q_norm_sq = sumsqr(quat)
-        #e_norm = q_norm_sq - 1
-
-        #quat_dot_correction = -k_gain * e_norm * quat
 
         # angular rate calculation
         quat_dot = 0.5 * (omega_matrix_func(omega_B) @ quat) #+ quat_dot_correction
@@ -426,7 +430,7 @@ class AeroVehicle:
         sim_u = np.zeros((N_sim + 1, nu))
         sim_u[0, :] = np.zeros(nu)
         if open_loop_control is not None:
-            sim_u[0, :] = open_loop_control.get_u(0)
+            sim_u[0, :] = open_loop_control.compute_control_input(0)
 
         sim_t = np.zeros((N_sim + 1))
 
@@ -435,7 +439,7 @@ class AeroVehicle:
         for i in range(N_sim):
             u_current = np.zeros(nu)
             if open_loop_control is not None:
-                u_current = open_loop_control.get_u(sim_t[i])
+                u_current = open_loop_control.compute_control_input(sim_t[i])
             sim_x[i + 1, :] = acados_integrator.simulate(x=sim_x[i, :], u=u_current)
             sim_u[i + 1, :] = u_current
             sim_t[i + 1] = (i + 1) * dt
@@ -450,8 +454,8 @@ class AeroVehicle:
         """
         Runs a 6DoF optimal control
         """
-        if self.acados_model is None:
-            self._create_acados_model(True)
+        if self.vehicle_dynamics.acados_model is None:
+            self.vehicle_dynamics.create_acados_model(True)
 
         N = 50
         tf = 10
@@ -466,7 +470,7 @@ class AeroVehicle:
         x0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, delta_0))
 
         ocp = AcadosOcp()
-        ocp.model = self.acados_model
+        ocp.model = self.vehicle_dynamics.acados_model
 
         nx = ocp.model.x.rows()
         nu = ocp.model.u.rows()

@@ -2,9 +2,10 @@ import numpy as np
 import casadi as ca
 from typing import List, Dict, Any, Union
 import matplotlib.pyplot as plt
+from FlightCanvas.control.controller import BaseController
 
 
-class OpenLoopControl:
+class OpenLoopControl(BaseController):
     """
     Manages and generates open-loop control signals over time.
     """
@@ -15,6 +16,7 @@ class OpenLoopControl:
         :param num_inputs: The total number of control inputs (e.g., u1, u2, ...).
                            This determines the size of the output vector.
         """
+        super().__init__()
         self._signals: List[Dict[str, Any]] = []
         self.num_inputs = num_inputs
 
@@ -132,6 +134,9 @@ class OpenLoopControl:
             return self._get_u_casadi(t)
         else:
             return self._get_u_numpy(t)
+
+    def compute_control_input(self, t: float, state: np.ndarray) -> np.ndarray:
+        return self._get_u_numpy(t)
 
 
 if __name__ == '__main__':

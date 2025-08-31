@@ -203,24 +203,17 @@ if __name__ == "__main__":
             Z_dist[i, j] = distance
 
     # Create plots
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    fig, axes = plt.subplots(1, 2, figsize=(10, 6))
 
     # Arc length contour plot
     contour1 = axes[0].contourf(X, Y, Z_arc, levels=20, cmap='coolwarm', alpha=0.8)
-    axes[0].contour(X, Y, Z_arc, levels=15, colors='black', alpha=0.3, linewidths=0.5)
+    #axes[0].contour(X, Y, Z_arc, levels=15, colors='black', alpha=0.3, linewidths=0.5)
     plt.colorbar(contour1, ax=axes[0], label='Arc Length Along Path')
 
     # Distance contour plot for comparison
     contour2 = axes[1].contourf(X, Y, Z_dist, levels=20, cmap='viridis', alpha=0.8)
-    axes[1].contour(X, Y, Z_dist, levels=15, colors='white', alpha=0.3, linewidths=0.5)
+    #axes[1].contour(X, Y, Z_dist, levels=15, colors='white', alpha=0.3, linewidths=0.5)
     plt.colorbar(contour2, ax=axes[1], label='Distance to Path')
-
-    # Combined visualization
-    # Show arc length with distance as contour lines
-    contour3 = axes[2].contourf(X, Y, Z_arc, levels=20, cmap='coolwarm', alpha=0.6)
-    axes[2].contour(X, Y, Z_dist, levels=[0.1, 0.2, 0.5, 1.0, 2.0], colors='black',
-                    linewidths=1, linestyles='--', alpha=0.7)
-    plt.colorbar(contour3, ax=axes[2], label='Arc Length')
 
     # Add spline path to all plots
     spline_gen = make_symbolic_smooth_spline_simple(4, 100, smoothness)
@@ -238,13 +231,36 @@ if __name__ == "__main__":
         ax.legend()
         ax.set_aspect('equal')
 
-    axes[0].set_title('Arc Length Along Path\n(Red = End, Blue = Start)')
-    axes[1].set_title('Distance to Path\n(Dark = Close, Light = Far)')
-    axes[2].set_title('Combined: Arc Length + Distance Contours\n(Dashed lines = constant distance)')
-
-    plt.tight_layout()
     plt.show()
 
+    # Combined visualization
+    plt.figure(figsize=(8, 6))
+    ax3 = plt.gca()
+
+    # Show arc length with distance as contour lines
+    contour3 = ax3.contourf(X, Y, Z_arc, levels=20, cmap='coolwarm', alpha=0.6)
+    ax3.contour(X, Y, Z_dist, levels=[0.1, 0.2, 0.5, 1.0, 2.0], colors='black',
+                    linewidths=1, linestyles='--', alpha=0.7)
+    plt.colorbar(contour3, ax=ax3, label='Arc Length')
+
+    axes[0].set_title('Arc Length Along Path\n(Red = End, Blue = Start)')
+    axes[1].set_title('Distance to Path\n(Dark = Close, Light = Far)')
+    ax3.set_title('Combined: Arc Length + Distance Contours\n(Dashed lines = constant distance)')
+
+    ax3.plot(waypoints[0, :], waypoints[1, :], 'ko-', linewidth=3, markersize=8,
+            label='Waypoints', markerfacecolor='white', markeredgecolor='black', markeredgewidth=2)
+    ax3.plot(spline_points[:, 0], spline_points[:, 1], 'w-', linewidth=3, alpha=0.9,
+            label='Smooth Spline')
+    ax3.set_xlabel('X')
+    ax3.set_ylabel('Y')
+    ax3.grid(True, alpha=0.3)
+    ax3.legend()
+    ax3.set_aspect('equal')
+
+    #plt.tight_layout()
+    plt.show()
+
+    """
     # Create a detailed analysis plot
     print("\nCreating detailed analysis...")
 
@@ -312,11 +328,12 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.show()
+    """
 
-    print(f"\nFunction Analysis:")
-    print(f"Total path length: {total_length:.3f}")
-    print(f"Arc length range: 0 to {total_length:.3f}")
-    print(f"Distance range: {min(distances_line):.3f} to {max(distances_line):.3f}")
+    #print(f"\nFunction Analysis:")
+    #print(f"Total path length: {total_length:.3f}")
+    #print(f"Arc length range: 0 to {total_length:.3f}")
+    #print(f"Distance range: {min(distances_line):.3f} to {max(distances_line):.3f}")
 
     #return distance_func, arc_length_func, total_length_func
 
