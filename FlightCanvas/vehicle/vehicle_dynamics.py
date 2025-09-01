@@ -139,7 +139,7 @@ class VehicleDynamics:
                     for i in self.actuator_dynamics.deflection_indices
                 ])
                 if open_loop_control is not None:
-                    control_inputs = open_loop_control.compute_control_input(t)
+                    control_inputs = open_loop_control.compute_control_input(t, state)
                     deflections_state_dot = self.actuator_dynamics.get_dynamics(deflections_state, control_inputs)
                 else:
                     deflections_state_dot = np.zeros(len(deflections_state))
@@ -171,7 +171,7 @@ class VehicleDynamics:
         # Get control
         u_values = np.zeros((num_control_inputs, num_points))
         if open_loop_control is not None:
-            u_values = np.array([open_loop_control.compute_control_input(t) for t in solution['t']]).T
+            u_values = np.array([open_loop_control.compute_control_input(t, None) for t in solution['t']]).T
 
         return solution['t'], solution['y'], u_values
 
@@ -278,16 +278,16 @@ class VehicleDynamics:
         sim_u = np.zeros((N_sim + 1, nu))
         sim_u[0, :] = np.zeros(nu)
         if open_loop_control is not None:
-            sim_u[0, :] = open_loop_control.compute_control_input(0)
+            sim_u[0, :] = open_loop_control.compute_control_input(0, None)
 
-        sim_t = np.zeros((N_sim + 1))
+        sim_t = np.zeros(N_sim + 1)
 
         import time
         start_time = time.perf_counter()
         for i in range(N_sim):
             u_current = np.zeros(nu)
             if open_loop_control is not None:
-                u_current = open_loop_control.compute_control_input(sim_t[i])
+                u_current = open_loop_control.compute_control_input(sim_t[i], None)
             sim_x[i + 1, :] = acados_integrator.simulate(x=sim_x[i, :], u=u_current)
             sim_u[i + 1, :] = u_current
             sim_t[i + 1] = (i + 1) * dt
@@ -346,14 +346,6 @@ class VehicleDynamics:
             deflections_true = np.zeros(len(self.components))
 
         nx = state.shape[0]
-
-        # Constraints
-        #quat_con = ca.norm_2(quat) - 1  # quaterion
-        #con_h_expr = ca.vertcat(
-        #    quat_con,
-        #)
-        #model.con_h_expr = con_h_expr
-        #model.con_h_expr_0 = con_h_expr
 
         v_dot, omega_dot, quat_dot = self._calculate_rigid_body_derivatives(state, deflections_true, g)
 

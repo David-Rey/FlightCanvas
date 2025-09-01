@@ -2,6 +2,7 @@
 import aerosandbox as asb
 import aerosandbox.numpy as np
 from scipy.interpolate import splprep, splev
+import scipy.linalg
 
 from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 from FlightCanvas.components.aero_fuselage import AeroFuselage
@@ -14,17 +15,154 @@ from typing import Dict, List
 
 from FlightCanvas import utils
 
+try:
+    from acados_template import AcadosModel, AcadosOcp, AcadosSim, AcadosSimSolver, AcadosOcpSolver
+except ImportError:
+    print("Warning: 'acados_template' not installed. Related functionality will be unavailable.")
+    AcadosModel, AcadosOcp, AcadosOcpSolver, AcadosSim, AcadosSimSolver = None, None, None, None, None
+
+
 class StarshipController(OptimalController):
-    def __init__(self, vehicle: AeroVehicle):
-        super().__init__(vehicle)
+    def __init__(self, vehicle: AeroVehicle, Nsim: int, N_horizon: int, tf: float):
+        super().__init__(vehicle, Nsim, N_horizon, tf)
 
         self.vehicle = vehicle
 
+        self.ocp.dims.nx = self.nx
+        self.ocp.dims.nu = self.nu
+
+        self.set_ocp_options()
+        self.set_cost_function()
+        self.set_constraints()
+
+        self.ocp_solver = AcadosOcpSolver(self.ocp, verbose=True)
+
+        # create an integrator with the same settings as used in the OCP solver.
+        self.integrator = AcadosSimSolver(self.ocp)
+
+        self.simX = np.zeros((self.Nsim + 1, self.nx))
+        self.simU = np.zeros((self.Nsim, self.nu))
+        self.simT = np.zeros(self.Nsim)
+
+        self.t_preparation = np.zeros(self.Nsim)
+        self.t_feedback = np.zeros(self.Nsim)
 
 
-    def compute_control_input(self, t: float, state: np.ndarray) -> np.ndarray:
-        pass
+    def set_ocp_options(self):
+        self.ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
+        self.ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
+        self.ocp.solver_options.integrator_type = 'IRK'
+        self.ocp.solver_options.regularize_method = 'GERSHGORIN_LEVENBERG_MARQUARDT'
+        self.ocp.solver_options.levenberg_marquardt = 5e-2
+        self.ocp.solver_options.nlp_solver_type = 'SQP_RTI'
+        self.ocp.solver_options.tf = self.tf
 
+    def set_cost_function(self):
+        Q_omega = 5e1
+        Q_pos = 2e-1
+        Q_quat = 1e2
+        R_controls = 3e1
+        Q_delta = 1e1
+
+        Q_diag = np.zeros(self.nx)
+        Q_diag[0:2] = Q_pos
+        Q_diag[7:10] = Q_quat
+        Q_diag[10:13] = Q_omega  # Weight on angular velocity
+        Q_diag[13:] = Q_delta
+        Q_mat = np.diag(Q_diag)
+
+        q_ref = utils.euler_to_quat((0, 0, 25))
+
+        # Create diagonal R matrix for control costs
+        R_mat = np.diag(np.full(self.nu, R_controls))
+
+        self.ocp.cost.cost_type = 'LINEAR_LS'
+        self.ocp.cost.cost_type_e = 'LINEAR_LS'
+
+        self.ocp.cost.yref = np.zeros(self.ny)
+        self.ocp.cost.yref_e = np.zeros(self.nx)
+
+        self.ocp.cost.yref[7:10] = q_ref[1:]
+        self.ocp.cost.yref_e[7:10] = q_ref[1:]
+        self.ocp.cost.yref[13:17] = np.deg2rad(np.array([30, 30, 20, 20]))
+        self.ocp.cost.yref_e[13:17] = np.deg2rad(np.array([30, 30, 20, 20]))
+
+        self.ocp.cost.W = scipy.linalg.block_diag(Q_mat, R_mat)
+        self.ocp.cost.W_e = Q_mat
+        self.ocp.cost.Vx = np.zeros((self.ny, self.nx))
+        self.ocp.cost.Vx[:self.nx, :self.nx] = np.eye(self.nx)
+        self.ocp.cost.Vu = np.zeros((self.ny, self.nu))
+        self.ocp.cost.Vu[self.nx:, :self.nu] = np.eye(self.nu)
+        self.ocp.cost.Vx_e = np.eye(self.nx)
+
+    def set_constraints(self):
+        max_rate_rad_s = np.deg2rad(15.0)
+        min_rate_rad_s = -max_rate_rad_s
+
+        self.ocp.constraints.idxbu = np.arange(self.nu)  # Constrain all control inputs
+        self.ocp.constraints.lbu = np.full(self.nu, min_rate_rad_s)
+        self.ocp.constraints.ubu = np.full(self.nu, max_rate_rad_s)
+
+        self.ocp.constraints.idxbx = np.array([13, 14, 15, 16])
+        self.ocp.constraints.lbx = np.deg2rad(np.array([5, 5, 5, 5]))
+        self.ocp.constraints.ubx = np.deg2rad(np.array([80, 80, 80, 80]))
+
+        # Initial state constraints
+        self.ocp.constraints.idxbx_0 = np.arange(self.nx)  # Constrain all states at initial time
+        self.ocp.constraints.lbx_0 = np.zeros(self.nx)  # Will be updated with current state
+        self.ocp.constraints.ubx_0 = np.zeros(self.nx)  # Will be updated with current state
+
+    def init_first_step(self, x0: np.ndarray):
+        pos_0 = x0[0:3]
+        vel_0 = x0[3:6]
+        quat_0 = x0[6:10]
+        omega_0 = x0[10:13]
+        delta_0 = x0[13:17]
+        gravity = True
+        print_debug = False
+        open_loop_control = None
+        _, init_x, init_u = self.vehicle.vehicle_dynamics.run_sim_scipy(pos_0, vel_0, quat_0, omega_0, delta_0, self.tf,
+                                                                        self.dt, gravity,
+                                                                        print_debug, open_loop_control)
+        for i in range(self.N_horizon):
+            self.ocp_solver.set(i, "x", init_x[:, i])
+            self.ocp_solver.set(i, "u", init_u[:, i])
+        self.ocp_solver.set(self.N_horizon, "x", init_x[:, self.N_horizon])
+        self.simX[0, :] = x0  # Use the actual initial state passed in
+
+
+    def compute_control_input(self, k: int, state: np.ndarray) -> np.ndarray:
+
+        # set initial state
+        if k == 0:
+            self.init_first_step(state)
+
+        self.ocp_solver.set(0, "lbx", state)
+        self.ocp_solver.set(0, "ubx", state)
+
+        self.ocp_solver.options_set('rti_phase', 1)
+        status = self.ocp_solver.solve()
+        self.t_preparation[k] = self.ocp_solver.get_stats('time_tot')
+
+        if status not in [0, 2, 5]:
+            raise Exception(f'acados returned status {status}. Exiting.')
+
+        # feedback phase
+        self.ocp_solver.options_set('rti_phase', 2)
+        self.ocp_solver.solve()
+        self.t_feedback[k] = self.ocp_solver.get_stats('time_tot')
+
+        self.simU[k, :] = self.ocp_solver.get(0, "u")
+        self.simX[k + 1, :] = self.integrator.simulate(x=self.simX[k, :], u=self.simU[k, :])
+        self.simT[k] = k * self.dt
+
+        return self.simX[k + 1, :]
+
+    def get_control_history(self):
+        """
+        TODO
+        """
+        return self.simT, self.simX.T, self.simU.T
 
 
 class Starship:
@@ -78,7 +216,11 @@ class Starship:
         self.vehicle.init_vehicle_dynamics()
 
         # Define OptimalController
-        self.controller = StarshipController(self.vehicle)
+        Nsim = 120
+        N_horizon = 50
+        tf = 8  # from horizon (dt = tf/N_horizon)
+        # true tf = dt * Nsim
+        self.vehicle.controller = StarshipController(self.vehicle, Nsim, N_horizon, tf)
 
         # Create Visualizer
         self.visualizer = VehicleVisualizer(self.vehicle)
@@ -214,7 +356,15 @@ class Starship:
         return np.vstack([x_coords, y_coords]).T
 
     def run_ocp(self):
-        t_arr, x_arr, u_arr = self.vehicle.run_ocp()
+        #t_arr, x_arr, u_arr = self.vehicle.run_ocp()
+        pos_0 = np.array([40, 0, 1000])  # Initial position
+        vel_0 = np.array([0, 0, -30])  # Initial velocity
+        quat_0 = utils.euler_to_quat((0, 0, 0))
+        omega_0 = np.array([0, 0, 0])  # Initial angular velocity
+        delta_0 = np.deg2rad(np.array([30, 30, 20, 20]))
+
+        self.vehicle.run_mpc(pos_0, vel_0, quat_0, omega_0, delta_0)
+        t_arr, x_arr, u_arr = self.vehicle.controller.get_control_history()
         self.vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
         self.vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
 
@@ -227,7 +377,7 @@ class Starship:
         tf = 30
 
         t_arr, x_arr, u_arr = self.vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf,
-                            casadi=True, open_loop_control=None, gravity=True)
+                            casadi=False, open_loop_control=None, gravity=True)
         self.vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
         self.vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
 
@@ -235,7 +385,8 @@ if __name__ == '__main__':
     # Create an instance of the entire Starship model
     starship = Starship()
     #starship.compute_buildup()
-    starship.run_sim()
+    starship.run_ocp()
+    #starship.run_sim()
 
 
 

@@ -12,26 +12,38 @@ except ImportError:
 import numpy as np
 
 class OptimalController(BaseController):
-    def __init__(self, vehicle: AeroVehicle):
+    def __init__(self, vehicle: AeroVehicle, Nsim: int, N_horizon: int, tf: float):
         super().__init__()
+
+        self.Nsim = Nsim
+
+        self.N_horizon = N_horizon
+
+        self.tf = tf
+
+        self.dt = self.tf / self.N_horizon
 
         self._vehicle = vehicle
         if self._vehicle.vehicle_dynamics.acados_model is None:
             self._vehicle.vehicle_dynamics.create_acados_model(True)
 
-        self.nx = self._vehicle.vehicle_dynamics.acados_model.x.row()
-        self.nu = self._vehicle.vehicle_dynamics.acados_model.u.row()
+        self.acados_model = self._vehicle.vehicle_dynamics.acados_model
+
+        self.nx = self.acados_model.x.rows()
+        self.nu = self.acados_model.u.rows()
+        self.ny = self.nx + self.nu
 
         self.ocp = AcadosOcp()
+        self.ocp.model = self.acados_model
 
-    def set_ocp_options(self):
-        self.ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
-        self.ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
-        self.ocp.solver_options.integrator_type = 'IRK'
-        self.ocp.solver_options.regularize_method = 'GERSHGORIN_LEVENBERG_MARQUARDT'
-        self.ocp.solver_options.levenberg_marquardt = 5e-2
-        self.ocp.solver_options.nlp_solver_type = 'SQP_RTI'
+        # Set horizon and time
+        self.ocp.solver_options.N_horizon = self.N_horizon
+        self.ocp.solver_options.tf = self.tf
 
     @abstractmethod
-    def compute_control_input(self, t: float, state: np.ndarray) -> np.ndarray:
+    def compute_control_input(self, k: int, state: np.ndarray) -> np.ndarray:
+        pass
+
+    @abstractmethod
+    def init_first_step(self, x0: np.ndarray):
         pass

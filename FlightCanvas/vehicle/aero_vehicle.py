@@ -144,6 +144,21 @@ class AeroVehicle:
         """
         return self.vehicle_dynamics.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, casadi, print_debug, open_loop_control)
 
+    def run_mpc(
+        self,
+        pos_0: np.ndarray,
+        vel_0: np.ndarray,
+        quat_0: np.ndarray,
+        omega_0: np.ndarray,
+        delta_0: np.ndarray
+    ):
+
+        state = np.concatenate((pos_0, vel_0, quat_0, omega_0, delta_0))
+        N = self.controller.Nsim
+        for i in range(N):
+            state = self.controller.compute_control_input(i, state)
+
+
     def run_ocp(self):
         """
         Runs a 6DoF optimal control
