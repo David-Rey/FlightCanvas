@@ -23,32 +23,44 @@ except ImportError:
 
 
 class StarshipController(OptimalController):
+    """
+    Model Predictive Controller (MPC) for the Starship vehicle using Acados
+    """
     def __init__(self, vehicle: AeroVehicle, Nsim: int, N_horizon: int, tf: float):
+        """
+        Initialize the Starship MPC controller
+        """
         super().__init__(vehicle, Nsim, N_horizon, tf)
 
         self.vehicle = vehicle
 
+        # Set problem dimensions
         self.ocp.dims.nx = self.nx
         self.ocp.dims.nu = self.nu
 
+        # Configure the optimal control problem
         self.set_ocp_options()
         self.set_cost_function()
         self.set_constraints()
 
+        # Create solver instances
         self.ocp_solver = AcadosOcpSolver(self.ocp, verbose=True)
-
-        # create an integrator with the same settings as used in the OCP solver.
         self.integrator = AcadosSimSolver(self.ocp)
 
+        # Initialize storage arrays
         self.simX = np.zeros((self.Nsim + 1, self.nx))
         self.simU = np.zeros((self.Nsim, self.nu))
         self.simT = np.zeros(self.Nsim)
 
+        # Performance tracking
         self.t_preparation = np.zeros(self.Nsim)
         self.t_feedback = np.zeros(self.Nsim)
 
 
     def set_ocp_options(self):
+        """
+        Configure solver options for the optimal control problem
+        """
         self.ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
         self.ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
         self.ocp.solver_options.integrator_type = 'IRK'
@@ -58,6 +70,9 @@ class StarshipController(OptimalController):
         self.ocp.solver_options.tf = self.tf
 
     def set_cost_function(self):
+        """
+        Define the cost function for the optimal control problem
+        """
         Q_omega = 5e1
         Q_pos = 2e-1
         Q_quat = 1e2
@@ -96,6 +111,14 @@ class StarshipController(OptimalController):
         self.ocp.cost.Vx_e = np.eye(self.nx)
 
     def set_constraints(self):
+        """
+        Define constraints for the optimal control problem.
+
+        Sets up three types of constraints:
+        1. Control input constraints (actuator rate limits)
+        2. State constraints (flap angle limits)
+        3. Initial state constraints (for MPC feedback)
+        """
         max_rate_rad_s = np.deg2rad(15.0)
         min_rate_rad_s = -max_rate_rad_s
 
@@ -113,6 +136,9 @@ class StarshipController(OptimalController):
         self.ocp.constraints.ubx_0 = np.zeros(self.nx)  # Will be updated with current state
 
     def init_first_step(self, x0: np.ndarray):
+        """
+        Initialize the MPC solver with a warm-start trajectory
+        """
         pos_0 = x0[0:3]
         vel_0 = x0[3:6]
         quat_0 = x0[6:10]
@@ -132,7 +158,9 @@ class StarshipController(OptimalController):
 
 
     def compute_control_input(self, k: int, state: np.ndarray) -> np.ndarray:
-
+        """
+        Compute optimal control input using MPC at time step k
+        """
         # set initial state
         if k == 0:
             self.init_first_step(state)
@@ -160,7 +188,7 @@ class StarshipController(OptimalController):
 
     def get_control_history(self):
         """
-        TODO
+        Return the complete control history for post-processing
         """
         return self.simT, self.simX.T, self.simU.T
 
@@ -176,8 +204,12 @@ class Starship:
 
     def __init__(self, cg_x=19.0, height=50.0, diameter=9.0):
         """
-        Initializes and builds the Starship vehicle model.
+        Initializes and builds the Starship vehicle model
+        :param cg_x: The initial cg in x direction in m
+        :param height: The height in m
+        :param diameter: The diameter in m
         """
+        # Store geometric parameters
         self.cg_x = cg_x
         self.height = height
         self.diameter = diameter
@@ -302,6 +334,11 @@ class Starship:
 
     @staticmethod
     def _get_control_mapping() -> Dict[str, Dict[str, float]]:
+        """
+        Define how abstract control commands map to individual flap deflections
+        :return: Control mapping from abstract commands to flap deflections
+        """
+
         return {
             "pitch control": {
                 "Front Flap": 1.0,
@@ -332,11 +369,21 @@ class Starship:
     # --- Helper methods for geometry creation ---
     @staticmethod
     def _smooth_path(points: np.ndarray, smoothing_factor: float = 0.0, n_points: int = 500) -> np.ndarray:
+        """
+        Create smooth spline interpolation through given points
+        """
         tck, u = splprep(points.T, s=smoothing_factor)
         u_fine = np.linspace(0, 1, n_points)
         return np.array(splev(u_fine, tck)).T
 
     def _get_nosecone_cords(self, diameter, smoothed=True, n_points=500) -> np.ndarray:
+        """
+        Generate nosecone profile coordinates based on Starship-like proportions
+        :param diameter: The diameter of the starship
+        :param smoothed: If true, smooth profile coordinates
+        :param n_points: Number of points in final profile
+        :return: The nosecone profile coordinates
+        """
         points = np.array([
             [0.010000, 0.000000], [0.057585, 0.238814], [0.286398, 0.495763],
             [2.231314, 1.601695], [3.222839, 2.097458], [6.502500, 3.394068],
@@ -348,6 +395,9 @@ class Starship:
 
     @staticmethod
     def _flat_plate_airfoil(thickness=0.01, n_points=100) -> np.ndarray:
+        """
+        Generate flat plate airfoil coordinates for control surfaces
+        """
         x = np.linspace(1, 0, n_points)
         y_upper = thickness / 2 * np.ones_like(x)
         y_lower = -thickness / 2 * np.ones_like(x)
@@ -357,7 +407,7 @@ class Starship:
 
     def run_ocp(self):
         #t_arr, x_arr, u_arr = self.vehicle.run_ocp()
-        pos_0 = np.array([40, 0, 1000])  # Initial position
+        pos_0 = np.array([1000, 0, 1000])  # Initial position
         vel_0 = np.array([0, 0, -30])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
