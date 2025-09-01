@@ -11,6 +11,7 @@ from FlightCanvas import utils
 from FlightCanvas.actuators.actuators import ActuatorModel
 from FlightCanvas.buildup.buildup_manager import BuildupManager
 from FlightCanvas.buildup.buildup_aero import BuildupAero
+from FlightCanvas.buildup.buildup_manager_old import BuildupManagerOld
 
 
 class AeroComponent(ABC):
@@ -279,8 +280,8 @@ class AeroComponent(ABC):
         :param component: The aerodynamic component to perform the buildup on
         """
         if self.is_prime:
-            self.buildup_manager = BuildupManager(self.name, vehicle_path, component)
-            #self.buildup_manager = BuildupAero(self.name, vehicle_path, component)
+            #self.buildup_manager = BuildupManager(self.name, vehicle_path, component)
+            self.buildup_manager = BuildupManagerOld(self.name, vehicle_path, component)
 
     def compute_buildup(self):
         """
@@ -370,7 +371,7 @@ class AeroComponent(ABC):
 
         # Static rotations based on component geometry (can be calculated with NumPy)
         transform_from_axis_vec = utils.rotation_matrix_from_vectors(x_vec, self.ref_direction)
-        transform_from_ref = utils.translation_matrix(self.xyz_ref)
+        transform_from_ref = utils.translation_matrix(self.xyz_ref - self.parent.xyz_ref)
 
         # Calculate the Dynamic Control Deflection Matrix
         # Use the dispatched functions to create a matrix of the correct type
