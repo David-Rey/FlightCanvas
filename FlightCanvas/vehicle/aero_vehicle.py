@@ -333,3 +333,12 @@ class AeroVehicle:
         """
         self.pl.add_axes_at_origin(labels_off=True)
         self.pl.show(**kwargs)
+
+    def test_new_buildup(self):
+
+        comp = self.components[0]
+        F_b, M_b = comp.buildup_manager.get_forces_and_moments(0.05, 0.05, 100, 0, 0, 0)
+        print(f"F_b {F_b}")
+        print(f"M_b {M_b}")
+
+

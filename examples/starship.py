@@ -247,21 +247,32 @@ class Starship:
         # Define vehicle dynamics
         self.vehicle.init_vehicle_dynamics()
 
+        # Create Visualizer
+        self.visualizer = VehicleVisualizer(self.vehicle)
+
+    def init_controller(self):
+        """
+        Initialize the controller for the vehicle
+        """
         # Define OptimalController
         Nsim = 120
         N_horizon = 50
         tf = 8  # from horizon (dt = tf/N_horizon)
         # true tf = dt * Nsim
-        self.vehicle.controller = StarshipController(self.vehicle, Nsim, N_horizon, tf)
 
-        # Create Visualizer
-        self.visualizer = VehicleVisualizer(self.vehicle)
+        self.vehicle.controller = StarshipController(self.vehicle, Nsim, N_horizon, tf)
 
     def save_buildup(self):
         """
         Saves the aerodynamic buildup data
         """
         self.vehicle.save_buildup()
+
+    def save_buildup_figs(self):
+        """
+        Saves the aerodynamic buildup figures
+        """
+        self.vehicle.save_buildup_fig()
 
     def _set_mass_properties(self):
         """
@@ -407,7 +418,7 @@ class Starship:
 
     def run_ocp(self):
         #t_arr, x_arr, u_arr = self.vehicle.run_ocp()
-        pos_0 = np.array([1000, 0, 1000])  # Initial position
+        pos_0 = np.array([100, 0, 1000])  # Initial position
         vel_0 = np.array([0, 0, -30])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
@@ -434,8 +445,14 @@ class Starship:
 if __name__ == '__main__':
     # Create an instance of the entire Starship model
     starship = Starship()
-    #starship.compute_buildup()
-    starship.run_ocp()
+    starship.vehicle.compute_buildup()
+
+    starship.vehicle.test_new_buildup()
+
+    #starship.save_buildup()
+    #starship.save_buildup_figs()
+
+    #starship.run_ocp()
     #starship.run_sim()
 
 

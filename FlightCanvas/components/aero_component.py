@@ -9,7 +9,8 @@ import pyvista as pv
 
 from FlightCanvas import utils
 from FlightCanvas.actuators.actuators import ActuatorModel
-from FlightCanvas.buildup_manager import BuildupManager
+from FlightCanvas.buildup.buildup_manager import BuildupManager
+from FlightCanvas.buildup.buildup_aero import BuildupAero
 
 
 class AeroComponent(ABC):
@@ -279,6 +280,7 @@ class AeroComponent(ABC):
         """
         if self.is_prime:
             self.buildup_manager = BuildupManager(self.name, vehicle_path, component)
+            #self.buildup_manager = BuildupAero(self.name, vehicle_path, component)
 
     def compute_buildup(self):
         """
