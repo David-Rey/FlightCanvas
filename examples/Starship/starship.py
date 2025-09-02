@@ -107,7 +107,7 @@ class Starship:
         """
         Sets the mass and moment of inertia for the vehicle
         """
-        self.vehicle.set_mass(95000)
+        self.vehicle.set_mass(105000)
         # MOI for a cylinder
         radius = self.diameter / 2
         I_s = (1 / 2) * radius ** 2  # Inertia about the spin axis (x)
@@ -244,8 +244,8 @@ class Starship:
         y_coords = np.concatenate([y_upper, y_lower[::-1]])
         return np.vstack([x_coords, y_coords]).T
 
-    def run_ocp(self):
-        pos_0 = np.array([-50, 0, 1100])  # Initial position
+    def run_mpc(self):
+        pos_0 = np.array([-50, 0, 1200])  # Initial position
         vel_0 = np.array([0, 0, -50])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
@@ -266,7 +266,7 @@ class Starship:
         delta_0 = np.deg2rad(np.array([20, 20, 20, 20]))
         tf = 30
 
-        t_arr, x_arr, u_arr = self.vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf,
+        self.vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf,
                             casadi=False, open_loop_control=None, gravity=True)
         #self.vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
         #self.vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
@@ -275,14 +275,14 @@ if __name__ == '__main__':
     # Create an instance of the entire Starship model
     starship = Starship()
 
-    start_time = time.time()
+    #start_time = time.time()
     starship.init_controller()
-    end_time = time.time()
+    #end_time = time.time()
 
-    elapsed_time = end_time - start_time
-    print(f"init_controller() took {elapsed_time} seconds to execute.")
+    #elapsed_time = end_time - start_time
+    #print(f"init_controller() took {elapsed_time} seconds to execute.")
 
-    starship.run_ocp()
+    starship.run_mpc()
 
     starship_visualizer = StarshipVisualizer(starship.vehicle)
     starship_visualizer.init_actors(color='lightblue', show_edges=False, opacity=1)

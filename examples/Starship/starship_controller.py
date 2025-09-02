@@ -2,6 +2,7 @@
 from FlightCanvas.control.optimal_controller import OptimalController
 import scipy.linalg
 from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
+from typing import Tuple
 
 import numpy as np
 from FlightCanvas import utils
@@ -39,11 +40,6 @@ class StarshipController(OptimalController):
         # Create solver instances
         self.ocp_solver = AcadosOcpSolver(self.ocp, verbose=True)
         self.integrator = AcadosSimSolver(self.ocp)
-
-        # Initialize storage arrays
-        self.simX = np.zeros((self.Nsim + 1, self.nx))
-        self.simU = np.zeros((self.Nsim, self.nu))
-        self.simT = np.zeros(self.Nsim)
 
         # Performance tracking
         self.t_preparation = np.zeros(self.Nsim)
@@ -147,10 +143,10 @@ class StarshipController(OptimalController):
             self.ocp_solver.set(i, "x", init_x[:, i])
             self.ocp_solver.set(i, "u", init_u[:, i])
         self.ocp_solver.set(self.N_horizon, "x", init_x[:, self.N_horizon])
-        self.simX[0, :] = x0  # Use the actual initial state passed in
+        self.simX[:, 0] = x0  # Use the actual initial state passed in
 
 
-    def compute_control_input(self, k: int, state: np.ndarray) -> np.ndarray:
+    def compute_control_input(self, k: int, state: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Compute optimal control input using MPC at time step k
         """
@@ -173,14 +169,9 @@ class StarshipController(OptimalController):
         self.ocp_solver.solve()
         self.t_feedback[k] = self.ocp_solver.get_stats('time_tot')
 
-        self.simU[k, :] = self.ocp_solver.get(0, "u")
-        self.simX[k + 1, :] = self.integrator.simulate(x=self.simX[k, :], u=self.simU[k, :])
+        self.simU[:, k] = self.ocp_solver.get(0, "u")
+        self.simX[:, k + 1] = self.integrator.simulate(x=self.simX[:, k], u=self.simU[:, k])
         self.simT[k] = k * self.dt
 
-        return self.simX[k + 1, :]
+        return self.simT[k], self.simX[:, k + 1], self.simU[:, k]
 
-    def get_control_history(self):
-        """
-        Return the complete control history for post-processing
-        """
-        return self.simT, self.simX.T, self.simU.T

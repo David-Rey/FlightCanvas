@@ -2,6 +2,7 @@ from abc import abstractmethod
 
 from FlightCanvas.control.controller import BaseController
 from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
+from typing import Tuple
 
 try:
     from acados_template import AcadosModel, AcadosOcp, AcadosSim, AcadosSimSolver, AcadosOcpSolver
@@ -40,8 +41,13 @@ class OptimalController(BaseController):
         self.ocp.solver_options.N_horizon = self.N_horizon
         self.ocp.solver_options.tf = self.tf
 
+        # Initialize storage arrays
+        self.simX = np.zeros((self.nx, self.Nsim + 1))
+        self.simU = np.zeros((self.nu, self.Nsim))
+        self.simT = np.zeros(self.Nsim)
+
     @abstractmethod
-    def compute_control_input(self, k: int, state: np.ndarray) -> np.ndarray:
+    def compute_control_input(self, k: int, state: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         pass
 
     @abstractmethod

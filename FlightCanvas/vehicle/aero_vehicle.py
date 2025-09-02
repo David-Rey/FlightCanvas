@@ -65,6 +65,9 @@ class AeroVehicle:
         # Update transformation matrices for all components
         self.update_transform()
 
+        self.simX = None
+        self.simU = None
+        self.simT = None
 
     def update_transform(self):
         """
@@ -116,7 +119,7 @@ class AeroVehicle:
         casadi: bool = True,
         print_debug: bool = False,
         open_loop_control: OpenLoopControl = None
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ):
         """
         Runs simulation of 6 Degree of Freedom model with no control
         :param pos_0: The initial position [x, y, z] (m)
@@ -130,9 +133,8 @@ class AeroVehicle:
         :param casadi: If True, uses the CasADi integrator; otherwise, uses SciPy
         :param print_debug: Boolean for printing debugging information
         :param open_loop_control: Open loop control object that commands the aero vehicle
-        :return: The time and state for every simulation step
         """
-        return self.vehicle_dynamics.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, casadi, print_debug, open_loop_control)
+        self.simT, self.simX, self.simU = self.vehicle_dynamics.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, casadi, print_debug, open_loop_control)
 
     def run_mpc(
         self,
@@ -151,10 +153,21 @@ class AeroVehicle:
         :param delta_0: The initial flap deflection [fl, fr, al, af] (rad)
         """
 
+        Nsim = self.controller.Nsim
+        nx = self.controller.nx
+        nu = self.controller.nu
+
+        self.simX = np.zeros((nx, Nsim + 1))
+        self.simU = np.zeros((nu, Nsim))
+        self.simT = np.zeros(Nsim)
+
         state = np.concatenate((pos_0, vel_0, quat_0, omega_0, delta_0))
         N = self.controller.Nsim
         for i in range(N):
-            state = self.controller.compute_control_input(i, state)
+            t, state, u = self.controller.compute_control_input(i, state)
+            self.simX[:, i] = state
+            self.simU[:, i] = u
+            self.simT[i] = t
 
     def init_buildup_manager(self):
         """
@@ -201,6 +214,12 @@ class AeroVehicle:
         """
         for component in self.components:
             component.generate_mesh()
+
+    def get_control_history(self):
+        """
+        Return the complete control history for post-processing
+        """
+        return self.simT, self.simX, self.simU
 
     def test_new_buildup(self):
 

@@ -19,28 +19,22 @@ class VehicleVisualizer:
         self.stage_text = None
         self.info_text = None
         self.state_vec_text = None
-        #self.control_text = None
 
         # Text display settings
         self.text_prop = TextProperty(font_size=20, color='black', justification_horizontal='left', justification_vertical='top')
         self.stage_text_prop = TextProperty(font_size=20, color='black', justification_horizontal='right', justification_vertical='top')
-        #self.control_text_prop = TextProperty(font_size=16, color='blue')
 
     def init_text(self):
         """
         Initialize text elements for the visualization
         """
         # Init Text elements at different screen positions
-        #self.stage_text = Text("", [20, 720], prop=self.stage_text_prop)
         self.info_text = Text("", [20, 720], prop=self.text_prop)
         self.state_vec_text = Text("", [600, 720], prop=self.stage_text_prop)
-        #self.control_text = Text("", [850, 200], prop=self.control_text_prop)
 
         # Add to plot
-        #self.pl.add_actor(self.stage_text)
         self.pl.add_actor(self.info_text)
         self.pl.add_actor(self.state_vec_text)
-        #self.pl.add_actor(self.control_text)
 
     def init_actors(self, **kwargs):
         """
@@ -127,17 +121,6 @@ class VehicleVisualizer:
         self.state_vec_text.input = state_vec_str
         self.state_vec_text.prop = self.text_prop
 
-        # Control and deflection information
-        #control_str = (
-        #    f"Control Inputs:\n"
-        #    f"  {np.array2string(control, precision=3, separator=', ')}\n"
-        #    f"True Deflections:\n"
-        #    f"  {np.array2string(true_deflection, precision=2, separator=', ')} deg"
-        #)
-
-        #self.control_text.input = control_str
-        #self.control_text.prop = self.control_text_prop
-
     def add_grid(self):
         grid = pv.Plane(
             center=(0, 0, 0),  # Center of the plane
@@ -157,7 +140,7 @@ class VehicleVisualizer:
         :param show_text: If true, draws text information
         :param cam_distance: The distance from the camera to center of mass
         """
-        t_arr, x_arr, u_arr = self.vehicle.controller.get_control_history()
+        t_arr, x_arr, u_arr = self.vehicle.get_control_history()
 
         if show_text:
             self.init_text()

@@ -1,6 +1,6 @@
 import numpy as np
 import casadi as ca
-from typing import List, Dict, Any, Union, Optional
+from typing import List, Dict, Any, Union, Optional, Tuple
 import matplotlib.pyplot as plt
 from FlightCanvas.control.controller import BaseController
 
@@ -135,8 +135,8 @@ class OpenLoopControl(BaseController):
         else:
             return self._get_u_numpy(t)
 
-    def compute_control_input(self, t: float, state: Optional[np.ndarray]) -> np.ndarray:
-        return self._get_u_numpy(t)
+    def compute_control_input(self, t: float, state: Optional[np.ndarray]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        return t, self._get_u_numpy(t), None
 
 
 if __name__ == '__main__':

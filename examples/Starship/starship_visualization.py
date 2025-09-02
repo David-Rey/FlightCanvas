@@ -11,7 +11,7 @@ class StarshipVisualizer(VehicleVisualizer):
 
 
     def generate_square_traj(self):
-        t_arr, x_arr, u_arr = self.vehicle.controller.get_control_history()
+        t_arr, x_arr, u_arr = self.vehicle.get_control_history()
 
         tf = t_arr[-1]
         hoops_per_sec = 3
