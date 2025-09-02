@@ -70,7 +70,7 @@ class StarshipController(OptimalController):
         Q_pos = 1e-1
         Q_quat = 1e2
         R_controls = 2e2
-        Q_delta = 1e0
+        Q_delta = 1e1
 
         Q_diag = np.zeros(self.nx)
         Q_diag[0:2] = Q_pos
@@ -92,8 +92,8 @@ class StarshipController(OptimalController):
 
         self.ocp.cost.yref[7:10] = q_ref[1:]
         self.ocp.cost.yref_e[7:10] = q_ref[1:]
-        self.ocp.cost.yref[13:17] = np.deg2rad(np.array([30, 30, 20, 20]))
-        self.ocp.cost.yref_e[13:17] = np.deg2rad(np.array([30, 30, 20, 20]))
+        self.ocp.cost.yref[13:17] = np.deg2rad(np.array([60, 60, 60, 60]))
+        self.ocp.cost.yref_e[13:17] = np.deg2rad(np.array([60, 60, 60, 60]))
 
         self.ocp.cost.W = scipy.linalg.block_diag(Q_mat, R_mat)
         self.ocp.cost.W_e = Q_mat

@@ -178,7 +178,6 @@ class Starship:
         Define how abstract control commands map to individual flap deflections
         :return: Control mapping from abstract commands to flap deflections
         """
-
         return {
             "pitch control": {
                 "Front Flap": 1.0,
@@ -259,10 +258,6 @@ class Starship:
         elapsed_time = end_time - start_time
         print(f"run_mpc() took {elapsed_time} seconds to execute.")
 
-        #t_arr, x_arr, u_arr = self.vehicle.controller.get_control_history()
-        #self.vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
-        #self.vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
-
     def run_sim(self):
         pos_0 = np.array([0, 0, 1000])  # Initial position
         vel_0 = np.array([0, 0, -1])  # Initial velocity
@@ -273,8 +268,8 @@ class Starship:
 
         t_arr, x_arr, u_arr = self.vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf,
                             casadi=False, open_loop_control=None, gravity=True)
-        self.vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
-        self.vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
+        #self.vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
+        #self.vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
 
 if __name__ == '__main__':
     # Create an instance of the entire Starship model
@@ -294,10 +289,9 @@ if __name__ == '__main__':
     starship_visualizer.add_grid()
     starship_visualizer.generate_square_traj()
     starship_visualizer.generate_z_line()
-    starship_visualizer.animate(cam_distance=80, debug=False)
+    starship_visualizer.animate(cam_distance=70, debug=False)
 
     #starship.vehicle.compute_buildup()
-
     #starship.vehicle.test_new_buildup()
 
     #starship.save_buildup()

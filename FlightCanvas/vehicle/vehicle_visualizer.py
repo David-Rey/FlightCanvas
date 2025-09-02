@@ -1,6 +1,8 @@
 
 from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 import pyvista as pv
+from pyvista import Text, TextProperty
+
 import numpy as np
 from FlightCanvas import utils
 
@@ -12,6 +14,33 @@ class VehicleVisualizer:
         self.cg_sphere = None
 
         self.pl = pv.Plotter()
+
+        # Text elements
+        self.stage_text = None
+        self.info_text = None
+        self.state_vec_text = None
+        #self.control_text = None
+
+        # Text display settings
+        self.text_prop = TextProperty(font_size=20, color='black', justification_horizontal='left', justification_vertical='top')
+        self.stage_text_prop = TextProperty(font_size=20, color='black', justification_horizontal='right', justification_vertical='top')
+        #self.control_text_prop = TextProperty(font_size=16, color='blue')
+
+    def init_text(self):
+        """
+        Initialize text elements for the visualization
+        """
+        # Init Text elements at different screen positions
+        #self.stage_text = Text("", [20, 720], prop=self.stage_text_prop)
+        self.info_text = Text("", [20, 720], prop=self.text_prop)
+        self.state_vec_text = Text("", [600, 720], prop=self.stage_text_prop)
+        #self.control_text = Text("", [850, 200], prop=self.control_text_prop)
+
+        # Add to plot
+        #self.pl.add_actor(self.stage_text)
+        self.pl.add_actor(self.info_text)
+        self.pl.add_actor(self.state_vec_text)
+        #self.pl.add_actor(self.control_text)
 
     def init_actors(self, **kwargs):
         """
@@ -60,6 +89,55 @@ class VehicleVisualizer:
             comp = self.vehicle.components[i]
             comp.update_debug(state, float(true_deflection[i]))
 
+    def draw_text(self, sim_time, state, control, true_deflection):
+        """
+        Draw text information on screen
+        :param sim_time: Current simulation time
+        :param state: Current vehicle state
+        :param control: Current control inputs
+        :param true_deflection: Current true deflection angles
+        """
+        # Basic flight information
+        velocity = np.linalg.norm(state[3:6])
+        altitude = state[2]  # Assuming negative Z is up
+
+        info_str = (
+            f"Time: {sim_time:.2f} s\n"
+            f"Altitude: {altitude:.2f} m\n"
+            f"Velocity: {velocity:.2f} m/s\n"
+            f"Mach: {velocity / 343:.3f}\n"
+            f"Dynamic Pressure: {0.5 * 1.225 * velocity ** 2:.2f} Pa"
+        )
+
+        self.info_text.input = info_str
+        self.info_text.prop = self.text_prop
+
+        # Detailed state vector information
+        angular_rates_deg = np.degrees(state[10:13])  # Convert rad/s to deg/s
+        deflection_angles_deg = np.degrees(state[13:17])  # Convert deflection angles to degrees
+
+        state_vec_str = (
+            f"Position: [{state[0]:.2f}, {state[1]:.2f}, {state[2]:.2f}] m\n"
+            f"Velocity: [{state[3]:.2f}, {state[4]:.2f}, {state[5]:.2f}] m/s\n"
+            f"Quaternion: [{state[6]:.3f}, {state[7]:.3f}, {state[8]:.3f}, {state[9]:.3f}]\n"
+            f"Angular Rate: [{angular_rates_deg[0]:.2f}, {angular_rates_deg[1]:.2f}, {angular_rates_deg[2]:.2f}] deg/s\n"
+            f"Flap Angles: [{deflection_angles_deg[0]:.2f}, {deflection_angles_deg[1]:.2f}, {deflection_angles_deg[2]:.2f}, {deflection_angles_deg[3]:.2f}] deg"
+        )
+
+        self.state_vec_text.input = state_vec_str
+        self.state_vec_text.prop = self.text_prop
+
+        # Control and deflection information
+        #control_str = (
+        #    f"Control Inputs:\n"
+        #    f"  {np.array2string(control, precision=3, separator=', ')}\n"
+        #    f"True Deflections:\n"
+        #    f"  {np.array2string(true_deflection, precision=2, separator=', ')} deg"
+        #)
+
+        #self.control_text.input = control_str
+        #self.control_text.prop = self.control_text_prop
+
     def add_grid(self):
         grid = pv.Plane(
             center=(0, 0, 0),  # Center of the plane
@@ -72,16 +150,20 @@ class VehicleVisualizer:
         # add grid to animation
         self.pl.add_mesh(grid, color="white", show_edges=True, edge_color="black")
 
-    def animate(self, debug=False, cam_distance=5):
+    def animate(self, debug=False, show_text=True, cam_distance=5):
         """
         Animates the aerodynamic visuals for all FlightCanvas
         :param debug: If true, draws debug visuals
+        :param show_text: If true, draws text information
         :param cam_distance: The distance from the camera to center of mass
         """
         t_arr, x_arr, u_arr = self.vehicle.controller.get_control_history()
 
+        if show_text:
+            self.init_text()
+
         # set frames per second
-        fps = 30
+        fps = 60
         dt = 1 / fps
 
         # calculate number of frames
@@ -108,9 +190,8 @@ class VehicleVisualizer:
             if debug:
                 self.update_debug(state, true_deflection)
 
-            # extract rotation matrix from quaterion
-            quat = state[6:10]
-            C_B_I = utils.dir_cosine_np(quat)
+            if show_text:
+                self.draw_text(sim_time, state, control, true_deflection)
 
             # get center of mass position
             pos = state[:3] # + (C_B_I @ self.vehicle.xyz_ref)

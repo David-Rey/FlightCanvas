@@ -14,7 +14,7 @@ class StarshipVisualizer(VehicleVisualizer):
         t_arr, x_arr, u_arr = self.vehicle.controller.get_control_history()
 
         tf = t_arr[-1]
-        hoops_per_sec = 4
+        hoops_per_sec = 3
 
         t_hoops = np.arange(0, tf, hoops_per_sec)
 
