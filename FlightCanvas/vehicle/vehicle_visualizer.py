@@ -2,7 +2,7 @@
 from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 import pyvista as pv
 from pyvista import Text, TextProperty
-
+from typing import Optional
 import numpy as np
 from FlightCanvas import utils
 
@@ -46,7 +46,7 @@ class VehicleVisualizer:
 
         [comp.init_actor(self.pl, **kwargs) for comp in self.vehicle.components]
 
-    def update_actors(self, state: np.ndarray, true_deflection: np.ndarray):
+    def update_actors(self, state: np.ndarray, true_deflection: Optional[np.ndarray]):
         """
         Updates PyVista actors for all FlightCanvas
         :param state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)
@@ -54,7 +54,10 @@ class VehicleVisualizer:
         """
         for i in range(len(self.vehicle.components)):
             comp = self.vehicle.components[i]
-            comp.update_actor(state, float(true_deflection[i]))
+            if true_deflection is not None:
+                comp.update_actor(state, float(true_deflection[i]))
+            else:
+                comp.update_actor(state, 0)
 
     def init_debug(self, size=1, label=True):
         """
@@ -133,12 +136,13 @@ class VehicleVisualizer:
         # add grid to animation
         self.pl.add_mesh(grid, color="white", show_edges=True, edge_color="black")
 
-    def animate(self, debug=False, show_text=True, cam_distance=5):
+    def animate(self, debug=False, show_text=True, cam_distance=5, fps=60):
         """
         Animates the aerodynamic visuals for all FlightCanvas
         :param debug: If true, draws debug visuals
         :param show_text: If true, draws text information
         :param cam_distance: The distance from the camera to center of mass
+        :param fps: The frames per second of animation
         """
         t_arr, x_arr, u_arr = self.vehicle.get_control_history()
 
@@ -146,7 +150,6 @@ class VehicleVisualizer:
             self.init_text()
 
         # set frames per second
-        fps = 60
         dt = 1 / fps
 
         # calculate number of frames
@@ -164,9 +167,10 @@ class VehicleVisualizer:
             state, control = utils.interp_state(t_arr, x_arr, u_arr, sim_time)
             state[0] = -state[0]
 
-            #
-            deflection_state = state[13:]
-            true_deflection = self.vehicle.actuator_dynamics.get_component_deflection(deflection_state, control)
+            true_deflection = None
+            if self.vehicle.actuator_dynamics is not None:
+                deflection_state = state[13:]
+                true_deflection = self.vehicle.actuator_dynamics.get_component_deflection(deflection_state, control)
 
             # Update actors with interpolated state
             self.update_actors(state, true_deflection)

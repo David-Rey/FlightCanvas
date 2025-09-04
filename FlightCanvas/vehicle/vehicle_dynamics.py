@@ -265,7 +265,10 @@ class VehicleDynamics:
         sim.solver_options.collocation_type = "GAUSS_RADAU_IIA"
 
         nx = sim.model.x.rows()
-        nu = sim.model.u.rows()
+        if not sim.model.u:
+            nu = 0
+        else:
+            nu = sim.model.u.rows()
 
         if delta_0 is None:
             delta_0 = np.empty(0)

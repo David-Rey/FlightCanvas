@@ -5,6 +5,7 @@ import aerosandbox.numpy as np
 
 from FlightCanvas.components.aero_wing import create_axial_wing_pair
 from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
+from FlightCanvas.vehicle.vehicle_visualizer import VehicleVisualizer
 from FlightCanvas import utils
 
 if __name__ == '__main__':
@@ -35,28 +36,23 @@ if __name__ == '__main__':
         components=all_components
     )
 
-    # DEBUG
-    animate = 0
-
     aero_vehicle.compute_buildup()
     #aero_vehicle.save_buildup()
     #aero_vehicle.save_buildup_fig()
     #aero_vehicle.load_buildup()
+    aero_vehicle.init_vehicle_dynamics()
 
-    if animate:
-        pos_0 = np.array([0, 0, 950])  # Initial position
-        vel_0 = np.array([100, 0, 0])  # Initial velocity
-        quat_0 = utils.euler_to_quat((0, 0, 0))
-        omega_0 = np.array([0, 0, 2])  # Initial angular velocity
-        tf = 10
+    pos_0 = np.array([0, 0, 950])  # Initial position
+    vel_0 = np.array([100, 0, 0])  # Initial velocity
+    quat_0 = utils.euler_to_quat((0, 0, 0))
+    omega_0 = np.array([0, 0, 2])  # Initial angular velocity
+    delta_0 = []
+    tf = 10
+    dt = 0.02
 
-        t_arr, x_arr, u_arr = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf,
-                                            casadi=True, gravity=True)
-        #t_arr_2, x_arr_2 = aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, gravity=True)
-        aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
-        aero_vehicle.animate(t_arr, x_arr, u_arr, debug=False)
-    else:
-        aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=0.8)
-        aero_vehicle.init_debug(size=2)
-        aero_vehicle.show()
+    aero_vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity=False, casadi=False)
 
+    vis = VehicleVisualizer(aero_vehicle)
+    vis.init_actors(color='lightblue', show_edges=False, opacity=1)
+    vis.add_grid()
+    vis.animate(show_text=False, cam_distance=5, fps=30)
