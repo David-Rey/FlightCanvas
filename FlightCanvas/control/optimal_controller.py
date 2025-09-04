@@ -46,6 +46,9 @@ class OptimalController(BaseController):
         self.simU = np.zeros((self.nu, self.Nsim))
         self.simT = np.zeros(self.Nsim)
 
+        self.simXhorizon = np.zeros((self.nx, self.Nsim, self.N_horizon + 1))
+        self.simUhorizon = np.zeros((self.nu, self.Nsim, self.N_horizon + 1))
+
     @abstractmethod
     def compute_control_input(self, k: int, state: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         pass

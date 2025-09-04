@@ -56,7 +56,10 @@ class StarshipController(OptimalController):
         self.ocp.solver_options.regularize_method = 'GERSHGORIN_LEVENBERG_MARQUARDT'
         self.ocp.solver_options.levenberg_marquardt = 5e-2
         self.ocp.solver_options.nlp_solver_type = 'SQP_RTI'
+        #self.ocp.solver_options.globalization = 'MERIT_BACKTRACKING'
         self.ocp.solver_options.tf = self.tf
+
+        self.ocp.solver_options.globalization = 'MERIT_BACKTRACKING'  # Enable globalization
 
     def set_cost_function(self):
         """
@@ -65,7 +68,7 @@ class StarshipController(OptimalController):
         Q_omega = 2e1
         Q_pos = 1e-1
         Q_quat = 1e2
-        R_controls = 2e2
+        R_controls = 2e3
         Q_delta = 1e1
 
         Q_diag = np.zeros(self.nx)
@@ -172,6 +175,11 @@ class StarshipController(OptimalController):
         self.simU[:, k] = self.ocp_solver.get(0, "u")
         self.simX[:, k + 1] = self.integrator.simulate(x=self.simX[:, k], u=self.simU[:, k])
         self.simT[k] = k * self.dt
+
+        for i in range(self.N_horizon + 1):
+            self.simXhorizon[:, k, i] = self.ocp_solver.get(i, "x")
+        for i in range(self.N_horizon):
+            self.simUhorizon[:, k, i] = self.ocp_solver.get(i, "u")
 
         return self.simT[k], self.simX[:, k + 1], self.simU[:, k]
 

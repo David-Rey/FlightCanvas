@@ -25,14 +25,14 @@ class Starship:
     simulations and visualizations.
     """
 
-    def __init__(self, cg_x=19.0, height=50.0, diameter=9.0):
+    def __init__(self, cg_x=25.0, height=50.0, diameter=9.0):
         """
         Initializes and builds the Starship vehicle model
         :param cg_x: The initial cg in x direction in m
         :param height: The height in m
         :param diameter: The diameter in m
         """
-        # Store geometric parameters
+        # Store geometric parameters19
         self.cg_x = cg_x
         self.height = height
         self.diameter = diameter
@@ -80,7 +80,7 @@ class Starship:
         """
         # Define OptimalController
         Nsim = 200
-        N_horizon = 100
+        N_horizon = 120
         tf = 10  # from horizon (dt = tf/N_horizon)
         # true tf = dt * Nsim
         true_dt = tf/N_horizon
@@ -113,6 +113,26 @@ class Starship:
         I_s = (1 / 2) * radius ** 2  # Inertia about the spin axis (x)
         I_a = ((1 / 4) * radius ** 2) + ((1 / 12) * self.height ** 2)  # Inertia about transverse axes (y, z)
         self.vehicle.set_moi_diag([I_s, I_a, I_a])
+
+    def update_moment(self):
+        """
+        Updates the body moments to get the cg to be reasonable
+        """
+        # Retrieve the tuple from the dictionary
+        F_b_tuple = self.vehicle.components[0].buildup_manager.asb_data_static["M_b"]
+
+        # Convert the tuple to a list to make it mutable
+        F_b_list = list(F_b_tuple)
+
+        # Access the moment value and update it within the new list
+        My = F_b_list[1] * 0.55
+
+        # Perform the item assignment on the list
+        F_b_list[1] = My
+
+        # Reassign the updated list back to the dictionary
+        self.vehicle.components[0].buildup_manager.asb_data_static["M_b"] = F_b_list
+
 
     def _create_body(self) -> AeroFuselage:
         """
@@ -245,6 +265,9 @@ class Starship:
         return np.vstack([x_coords, y_coords]).T
 
     def run_mpc(self):
+        """
+        Runs Model Predictive Control (MPC)
+        """
         pos_0 = np.array([-50, 0, 1200])  # Initial position
         vel_0 = np.array([0, 0, -50])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
@@ -259,37 +282,41 @@ class Starship:
         print(f"run_mpc() took {elapsed_time} seconds to execute.")
 
     def run_sim(self):
+        """
+        Runs static simulation
+        """
         pos_0 = np.array([0, 0, 1000])  # Initial position
         vel_0 = np.array([0, 0, -1])  # Initial velocity
-        quat_0 = utils.euler_to_quat((0, 0, -30))
+        quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
-        delta_0 = np.deg2rad(np.array([20, 20, 20, 20]))
-        tf = 30
+        delta_0 = np.deg2rad(np.array([30, 30, 20, 20]))
+        tf = 20
 
         self.vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf,
                             casadi=False, open_loop_control=None, gravity=True)
-        #self.vehicle.init_actors(color='lightblue', show_edges=False, opacity=1)
-        #self.vehicle.animate(t_arr, x_arr, u_arr, cam_distance=60, debug=False)
 
 if __name__ == '__main__':
     # Create an instance of the entire Starship model
     starship = Starship()
+    starship.update_moment()
+    timer = True
 
-    #start_time = time.time()
-    starship.init_controller()
-    #end_time = time.time()
-
-    #elapsed_time = end_time - start_time
-    #print(f"init_controller() took {elapsed_time} seconds to execute.")
+    if timer:
+        start_time = time.time()
+        starship.init_controller()
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        print(f"init_controller() took {elapsed_time} seconds to execute.")
 
     starship.run_mpc()
 
     starship_visualizer = StarshipVisualizer(starship.vehicle)
-    starship_visualizer.init_actors(color='lightblue', show_edges=False, opacity=1)
-    starship_visualizer.add_grid()
-    starship_visualizer.generate_square_traj()
-    starship_visualizer.generate_z_line()
-    starship_visualizer.animate(cam_distance=70, debug=False)
+    #starship_visualizer.init_actors(color='lightblue', show_edges=False, opacity=1)
+    #starship_visualizer.add_grid()
+    #starship_visualizer.generate_square_traj()
+    #starship_visualizer.generate_z_line()
+    #starship_visualizer.animate(cam_distance=70, debug=False)
+    starship_visualizer.animate_mpc_horizon(save_path='mcp_state.mp4')
 
     #starship.vehicle.compute_buildup()
     #starship.vehicle.test_new_buildup()
