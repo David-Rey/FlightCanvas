@@ -156,6 +156,9 @@ def create_axial_wing_pair(
     :param num_wings: The number of wings to create
     :param kwargs:  Additional keyword arguments to be passed to the `aerosandbox.Wing` constructor
     """
+    if control_pivot is None:
+        control_pivot = ref_direction
+
     # Create the right-hand wing wrapper from the provided cross-sections
     main_aero_wing = AeroWing(
         name=f"{name}",

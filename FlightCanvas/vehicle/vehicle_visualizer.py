@@ -111,14 +111,14 @@ class VehicleVisualizer:
 
         # Detailed state vector information
         angular_rates_deg = np.degrees(state[10:13])  # Convert rad/s to deg/s
-        deflection_angles_deg = np.degrees(state[13:17])  # Convert deflection angles to degrees
+        #deflection_angles_deg = np.degrees(state[13:17])  # Convert deflection angles to degrees
 
         state_vec_str = (
             f"Position: [{state[0]:.2f}, {state[1]:.2f}, {state[2]:.2f}] m\n"
             f"Velocity: [{state[3]:.2f}, {state[4]:.2f}, {state[5]:.2f}] m/s\n"
             f"Quaternion: [{state[6]:.3f}, {state[7]:.3f}, {state[8]:.3f}, {state[9]:.3f}]\n"
             f"Angular Rate: [{angular_rates_deg[0]:.2f}, {angular_rates_deg[1]:.2f}, {angular_rates_deg[2]:.2f}] deg/s\n"
-            f"Flap Angles: [{deflection_angles_deg[0]:.2f}, {deflection_angles_deg[1]:.2f}, {deflection_angles_deg[2]:.2f}, {deflection_angles_deg[3]:.2f}] deg"
+            #f"Flap Angles: [{deflection_angles_deg[0]:.2f}, {deflection_angles_deg[1]:.2f}, {deflection_angles_deg[2]:.2f}, {deflection_angles_deg[3]:.2f}] deg"
         )
 
         self.state_vec_text.input = state_vec_str
