@@ -25,8 +25,9 @@ class FinTabs:
         self.num_fins = 4  # []
         self.root_chord = 0.203  # [m]
         self.tip_chord = 0.17  # [m]
-        self.fin_height = 0.21  # [m]
+        self.fin_height = 0.144  # [m]
         self.sweep_length = 0.033  # [m]
+        self.fin_thickness = 0.00635
 
         body = self._create_body()
         fins = self._create_fins()
@@ -79,9 +80,24 @@ class FinTabs:
             xsecs=body_xsecs
         )
 
+    @staticmethod
+    def _flat_plate_airfoil(thickness=0.01, n_points=100) -> np.ndarray:
+        """
+        Generate flat plate airfoil coordinates
+        :param thickness: Percent thickness of flat plate airfoil
+        :param n_points: Number of flat plate airfoil points
+        """
+        x = np.linspace(1, 0, n_points)
+        y_upper = thickness / 2 * np.ones_like(x)
+        y_lower = -thickness / 2 * np.ones_like(x)
+        x_coords = np.concatenate([x, x[::-1]])
+        y_coords = np.concatenate([y_upper, y_lower[::-1]])
+        return np.vstack([x_coords, y_coords]).T
+
     def _create_fins(self) -> List[asb.Wing]:
         """Creates a set of 4 symmetric fins."""
-        fin_airfoil = asb.Airfoil("naca0000")
+        percent_thickness = self.fin_thickness / self.root_chord
+        fin_airfoil = asb.Airfoil(coordinates=self._flat_plate_airfoil(thickness=percent_thickness))
         radius = self.rocket_diameter / 2
 
         # Define the leading edge x-position of the fin root
