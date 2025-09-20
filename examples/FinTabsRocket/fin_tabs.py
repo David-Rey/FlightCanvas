@@ -11,7 +11,6 @@ from FlightCanvas.components.aero_wing import AeroWing, create_axial_wing_pair
 
 from FlightCanvas.vehicle.vehicle_visualizer import VehicleVisualizer
 
-
 from FlightCanvas import utils
 
 
@@ -101,14 +100,15 @@ class FinTabs:
         flap_airfoil = asb.Airfoil(coordinates=self._flat_plate_airfoil(thickness=0.01))
         front_flap_xsecs = [
             asb.WingXSec(xyz_le=[-ref_delta, 0, 0], chord=self.root_chord, airfoil=flap_airfoil),
-            asb.WingXSec(xyz_le=[-ref_delta + self.sweep_length, self.fin_height, 0], chord=self.tip_chord, airfoil=flap_airfoil)
+            asb.WingXSec(xyz_le=[-ref_delta + self.sweep_length, self.fin_height, 0], chord=self.tip_chord,
+                         airfoil=flap_airfoil)
         ]
         return create_axial_wing_pair(
             name="Fins",
             xsecs=front_flap_xsecs,
-            translation=[delta + ref_delta, self.rocket_diameter/2, 0],
+            translation=[delta + ref_delta, self.rocket_diameter / 2, 0],
             ref_direction=[1, 0, 0],
-            num_wings = 4
+            num_wings=4
         )
 
     @staticmethod
@@ -137,7 +137,7 @@ class FinTabs:
         tf = 20
 
         self.vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf,
-                            casadi=False, open_loop_control=None, gravity=False)
+                             casadi=False, open_loop_control=None, gravity=False)
 
 
 if __name__ == '__main__':

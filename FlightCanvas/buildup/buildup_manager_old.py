@@ -46,7 +46,8 @@ class BuildupManagerOld:
         self.asb_data_static = None  # To hold the aero build data
         self.aero_interpolants = None  # To hold the CasADi interpolant object
 
-    def get_forces_and_moments(self, alpha: Union[float, ca.MX], beta: Union[float, ca.MX], speed: Union[float, ca.MX], p, q, r) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
+    def get_forces_and_moments(self, alpha: Union[float, ca.MX], beta: Union[float, ca.MX], speed: Union[float, ca.MX],
+                               p, q, r) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Computes forces and moments. This function is type-aware and will use
         either NumPy or CasADi based on the input type.
@@ -57,7 +58,6 @@ class BuildupManagerOld:
             return self._get_forces_and_moments_ca(alpha, beta, speed)
         else:
             return self._get_forces_and_moments_np(alpha, beta, speed)
-
 
     def _get_forces_and_moments_np(self, alpha: float, beta: float, speed: float) -> tuple[np.ndarray, np.ndarray]:
         """

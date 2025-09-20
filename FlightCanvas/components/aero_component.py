@@ -32,9 +32,9 @@ class AeroComponent(ABC):
         """
         Initializes an AeroComponent object
         :param name: The name of the component
-        :param ref_direction: The primary axis of the component, used for rotation (e.g., hinge axis for a control surface)
+        :param ref_direction: The primary axis of the component (e.g., hinge axis)
         :param control_pivot: The axis at which the component will rotate given a control input
-        :param is_prime: Flag to indicate if this is a primary component. If False, control surface rotations are inverted
+        :param is_prime: Flag to indicate if this is a primary component. If False, component does not hold aerodynamic buildup
         :param symmetric_comp: The AeroComponent object that is symmetric to the current AeroComponent object
         :param actuator_model: The actuator model object to use
         """
