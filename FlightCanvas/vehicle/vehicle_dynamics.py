@@ -66,7 +66,6 @@ class VehicleDynamics:
 
         return F_b, M_b
 
-
     def run_sim(
         self,
         pos_0: np.ndarray,
@@ -150,6 +149,7 @@ class VehicleDynamics:
             v_dot, omega_dot, quat_dot = self._calculate_rigid_body_derivatives(state, deflections_true, g)
 
             return np.concatenate((vel_I, v_dot, quat_dot, omega_dot, deflections_state_dot))
+
         if delta_0 is None:
             delta_0 = np.empty(0)
         state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, delta_0))

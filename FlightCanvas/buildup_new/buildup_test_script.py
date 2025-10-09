@@ -121,5 +121,35 @@ aero_vehicle = AeroVehicle(
 
 aero_vehicle.compute_buildup()
 
-
+wing = asb.Wing(
+    xsecs=[
+        asb.WingXSec(
+            xyz_le=[0, 0, 0],
+            chord=1,
+            airfoil=asb.Airfoil("naca4412"),
+            twist=0,
+            control_surfaces=[
+                asb.ControlSurface(
+                    name="Elevator",
+                    trailing_edge=True,
+                    hinge_point=0.75,
+                    deflection=10,
+                )
+            ],
+        ),
+        asb.WingXSec(
+            xyz_le=[0.5, 1, 0],
+            chord=0.5,
+            airfoil=asb.Airfoil("naca4412"),
+            twist=0,
+        ),
+        asb.WingXSec(
+            xyz_le=[0.7, 1, 0.3],
+            chord=0.3,
+            airfoil=asb.Airfoil("naca0012"),
+            twist=0,
+        ),
+    ]
+).translate([1, 0, 0])
+wing.subdivide_sections(10).draw()
 

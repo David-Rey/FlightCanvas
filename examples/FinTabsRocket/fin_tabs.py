@@ -34,13 +34,14 @@ class FinTabs:
         self.num_fins = 4  # []
         self.root_chord = 0.203  # [m]
         self.tip_chord = 0.17  # [m]
-        self.fin_height = 0.144  # [m]
-        self.sweep_length = 0.033  # [m]
+        self.fin_span = 0.144  # [m]
+        self.sweep_angle = 15  # [deg]
 
-        body = self._create_body()
+        #body = self._create_body()
         fins = self._create_fins()
 
-        all_components = [body, *fins]
+        #all_components = [body, *fins]
+        all_components = [*fins]
 
         # Assemble the AeroVehicle
         self.vehicle = AeroVehicle(
@@ -96,11 +97,12 @@ class FinTabs:
 
         ref_delta = 0
         delta = self.total_length - self.cg_x - self.root_chord
+        sweep_length = self.fin_span * np.sin(np.deg2rad(self.sweep_angle))
 
         flap_airfoil = asb.Airfoil(coordinates=self._flat_plate_airfoil(thickness=0.01))
         front_flap_xsecs = [
             asb.WingXSec(xyz_le=[-ref_delta, 0, 0], chord=self.root_chord, airfoil=flap_airfoil),
-            asb.WingXSec(xyz_le=[-ref_delta + self.sweep_length, self.fin_height, 0], chord=self.tip_chord,
+            asb.WingXSec(xyz_le=[-ref_delta + sweep_length, self.fin_span, 0], chord=self.tip_chord,
                          airfoil=flap_airfoil)
         ]
         return create_axial_wing_pair(
@@ -139,6 +141,19 @@ class FinTabs:
         self.vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf,
                              casadi=False, open_loop_control=None, gravity=False)
 
+    def test_dynamics(self):
+        pos_0 = np.array([0, 0, 1000])  # Initial position
+        vel_0 = np.array([50, 0, 0])  # Initial velocity
+        quat_0 = utils.euler_to_quat((0, 0, 0))
+        omega_0 = np.array([0, 0, 0])  # Initial angular velocity
+        delta_0 = np.array([])
+        state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, delta_0))
+        F_b, M_b = self.vehicle.vehicle_dynamics.compute_forces_and_moments(state_0, true_deflections=np.array([0, 0, 0, 0]))
+
+        print(F_b)
+        print(M_b)
+
+
 
 if __name__ == '__main__':
     rocket = FinTabs()
@@ -147,14 +162,14 @@ if __name__ == '__main__':
     rocket.vehicle.compute_buildup()
     #rocket.vehicle.save_buildup()
     #rocket.vehicle.save_buildup_fig()
-    rocket.run_sim()
+    rocket.test_dynamics()
 
     vis = VehicleVisualizer(rocket.vehicle)
     vis.init_actors(color='lightblue', show_edges=False, opacity=1)
-    vis.add_grid()
-    vis.animate()
-    #vis.init_debug(size=1)
-    #vis.show()
+    #vis.add_grid()
+    #vis.animate()
+    vis.init_debug(size=1)
+    vis.show()
 
     #tail_airfoil = asb.Airfoil("naca0010")
     '''
