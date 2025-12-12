@@ -167,8 +167,8 @@ class VehicleDynamics:
         command_names = sorted(self.control_mapping.keys())
         command_to_col = {name: i for i, name in enumerate(command_names)}
 
-        # Create a helper dictionary to quickly find an actuator's data by its name.
-        actuator_name_to_data = {act.component_name: act for act in self.control_mapping}
+        comp_lookup = {comp.name: comp for comp in self.components}
+        comp_lookup_by_index = {comp.name: i for i, comp in enumerate(self.components)}
 
         # Initialize the matrix. Rows correspond to the individual actuator inputs,
         # and columns correspond to the high-level control commands.
@@ -176,6 +176,7 @@ class VehicleDynamics:
             (self.num_actuator_inputs_comp, self.num_control_inputs)
         )
 
+        row_idx = 0
         # Populate the matrix using the defined mapping.
         for command_name, component_map in self.control_mapping.items():
             # Get the column index for the current high-level command.
@@ -183,14 +184,15 @@ class VehicleDynamics:
 
             for actuator_name, gain in component_map.items():
                 # Find the actuator's data (including its control_index) using its name.
-                if actuator_name in actuator_name_to_data:
-                    actuator_data = actuator_name_to_data[actuator_name]
-                    row_idx = actuator_data.control_index
+                if actuator_name in comp_lookup:
+                    row_idx = comp_lookup_by_index[actuator_name]
+                    #row_idx += 1
 
+                    allocation_matrix[row_idx, col_idx] += gain
                     # Ensure the component is actually a controllable actuator.
-                    if row_idx is not None:
+                    #if row_idx is not None:
                         # Place the gain at the correct row (actuator input) and column (command).
-                        allocation_matrix[row_idx, col_idx] += gain
+                        #allocation_matrix[row_idx, col_idx] += gain
                 else:
                     # Optional but recommended: A warning for names that don't match.
                     print(f"Warning: Actuator '{actuator_name}' in control mapping not found in components.")
