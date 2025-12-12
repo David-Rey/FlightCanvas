@@ -31,6 +31,9 @@ class VehicleDynamics:
         self.num_control_inputs = len(control_mapping)
         gravity = True
 
+        self.num_actuator_inputs_comp = len(components)
+
+        self.allocation_matrix = self.create_allocation_matrix()
         self.dynamics = self.create_casadi_model(gravity)
 
     def compute_forces_and_moments(
@@ -156,6 +159,44 @@ class VehicleDynamics:
 
         return f
 
+    def create_allocation_matrix(self) -> np.ndarray:
+        """
+        Creates the control allocation matrix for the vehicle.
+        """
+        # Get a sorted list of high-level command names for consistent column ordering.
+        command_names = sorted(self.control_mapping.keys())
+        command_to_col = {name: i for i, name in enumerate(command_names)}
+
+        # Create a helper dictionary to quickly find an actuator's data by its name.
+        actuator_name_to_data = {act.component_name: act for act in self.control_mapping}
+
+        # Initialize the matrix. Rows correspond to the individual actuator inputs,
+        # and columns correspond to the high-level control commands.
+        allocation_matrix = np.zeros(
+            (self.num_actuator_inputs_comp, self.num_control_inputs)
+        )
+
+        # Populate the matrix using the defined mapping.
+        for command_name, component_map in self.control_mapping.items():
+            # Get the column index for the current high-level command.
+            col_idx = command_to_col[command_name]
+
+            for actuator_name, gain in component_map.items():
+                # Find the actuator's data (including its control_index) using its name.
+                if actuator_name in actuator_name_to_data:
+                    actuator_data = actuator_name_to_data[actuator_name]
+                    row_idx = actuator_data.control_index
+
+                    # Ensure the component is actually a controllable actuator.
+                    if row_idx is not None:
+                        # Place the gain at the correct row (actuator input) and column (command).
+                        allocation_matrix[row_idx, col_idx] += gain
+                else:
+                    # Optional but recommended: A warning for names that don't match.
+                    print(f"Warning: Actuator '{actuator_name}' in control mapping not found in components.")
+
+        return allocation_matrix
+
     def run_sim(
             self,
             pos_0: np.ndarray,
@@ -183,7 +224,7 @@ class VehicleDynamics:
         :return: The time and state for every simulation step
         """
         state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
-        control = np.array([0, 0, 0, 0])
+        control = np.array([0, 0, 0, 0, 0])
 
         x_dot = self.dynamics(state_0, control)
         print(1)
