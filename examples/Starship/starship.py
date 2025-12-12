@@ -67,6 +67,8 @@ class Starship:
             self.vehicle.compute_buildup()
             self.vehicle.save_buildup()
 
+        self.update_moment()
+
         # Init vehicle dynamics
         self.vehicle.init_vehicle_dynamics(control_mapping)
 
@@ -263,22 +265,6 @@ class Starship:
         y_coords = np.concatenate([y_upper, y_lower[::-1]])
         return np.vstack([x_coords, y_coords]).T
 
-    def run_mpc(self):
-        """
-        Runs Model Predictive Control (MPC)
-        """
-        pos_0 = np.array([-50, 0, 1200])  # Initial position
-        vel_0 = np.array([0, 0, -50])  # Initial velocity
-        quat_0 = utils.euler_to_quat((0, 0, 0))
-        omega_0 = np.array([0, 0, 0])  # Initial angular velocity
-        delta_0 = np.deg2rad(np.array([30, 30, 20, 20]))
-
-        start_time = time.time()
-        self.vehicle.run_mpc(pos_0, vel_0, quat_0, omega_0, delta_0)
-        end_time = time.time()
-
-        elapsed_time = end_time - start_time
-        print(f"run_mpc() took {elapsed_time} seconds to execute.")
 
     def run_sim(self):
         """
@@ -288,17 +274,15 @@ class Starship:
         vel_0 = np.array([0, 0, -1])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
-        delta_0 = np.deg2rad(np.array([30, 30, 20, 20]))
         tf = 20
 
-        self.vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf,
-                            open_loop_control=None, gravity=True)
+        self.vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, open_loop_control=None)
 
 
 if __name__ == '__main__':
     # Create an instance of the entire Starship model
     starship = Starship()
-    starship.update_moment()
+    #starship.update_moment()
     #timer = True
 
     #if timer:
@@ -311,12 +295,12 @@ if __name__ == '__main__':
     starship.run_sim()
 
     starship_visualizer = StarshipVisualizer(starship.vehicle)
-    #starship_visualizer.init_actors(color='lightblue', show_edges=False, opacity=1)
-    #starship_visualizer.add_grid()
+    starship_visualizer.init_actors(color='lightblue', show_edges=False, opacity=1)
+    starship_visualizer.add_grid()
     #starship_visualizer.generate_square_traj()
     #starship_visualizer.generate_z_line()
-    #starship_visualizer.animate(cam_distance=70, debug=False)
-    starship_visualizer.animate_mpc_horizon(save_path='mcp_state.mp4')
+    starship_visualizer.animate(cam_distance=70, debug=False)
+    #starship_visualizer.animate_mpc_horizon(save_path='mcp_state.mp4')
 
     #starship.vehicle.compute_buildup()
     #starship.vehicle.test_new_buildup()

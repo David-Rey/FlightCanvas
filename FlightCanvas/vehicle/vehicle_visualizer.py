@@ -167,10 +167,13 @@ class VehicleVisualizer:
             state, control = utils.interp_state(t_arr, x_arr, u_arr, sim_time)
             state[0] = -state[0]
 
-            true_deflection = None
-            if self.vehicle.actuator_dynamics is not None:
-                deflection_state = state[13:]
-                true_deflection = self.vehicle.actuator_dynamics.get_component_deflection(deflection_state, control)
+            true_deflection = self.vehicle.vehicle_dynamics.allocation_matrix @ control
+            #true_deflection = control
+
+            #true_deflection = None
+            #if self.vehicle.actuator_dynamics is not None:
+                #deflection_state = state[13:]
+                #true_deflection = self.vehicle.actuator_dynamics.get_component_deflection(deflection_state, control)
 
             # Update actors with interpolated state
             self.update_actors(state, true_deflection)

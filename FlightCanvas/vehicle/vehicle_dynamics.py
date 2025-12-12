@@ -145,12 +145,15 @@ class VehicleDynamics:
         # Define Symbolic Controls
         num_deflection_states = self.num_control_inputs
         control_inputs = ca.MX.sym('control_inputs', num_deflection_states)
+        #control_inputs = ca.MX.sym('control_inputs', 5)
+
+        component_deflections = self.allocation_matrix @ control_inputs
 
         # concat state into a single variable
         state = ca.vertcat(pos_I, vel_I, quat, omega_B)
 
         # calculate x_dot
-        v_dot, omega_dot, quat_dot = self._calculate_rigid_body_derivatives(state, control_inputs, g)
+        v_dot, omega_dot, quat_dot = self._calculate_rigid_body_derivatives(state, component_deflections, g)
 
         state_dot = ca.vertcat(vel_I, v_dot, quat_dot, omega_dot)
 
@@ -164,7 +167,7 @@ class VehicleDynamics:
         Creates the control allocation matrix for the vehicle.
         """
         # Get a sorted list of high-level command names for consistent column ordering.
-        command_names = sorted(self.control_mapping.keys())
+        command_names = self.control_mapping.keys()
         command_to_col = {name: i for i, name in enumerate(command_names)}
 
         comp_lookup = {comp.name: comp for comp in self.components}
@@ -176,7 +179,6 @@ class VehicleDynamics:
             (self.num_actuator_inputs_comp, self.num_control_inputs)
         )
 
-        row_idx = 0
         # Populate the matrix using the defined mapping.
         for command_name, component_map in self.control_mapping.items():
             # Get the column index for the current high-level command.
@@ -186,13 +188,7 @@ class VehicleDynamics:
                 # Find the actuator's data (including its control_index) using its name.
                 if actuator_name in comp_lookup:
                     row_idx = comp_lookup_by_index[actuator_name]
-                    #row_idx += 1
-
                     allocation_matrix[row_idx, col_idx] += gain
-                    # Ensure the component is actually a controllable actuator.
-                    #if row_idx is not None:
-                        # Place the gain at the correct row (actuator input) and column (command).
-                        #allocation_matrix[row_idx, col_idx] += gain
                 else:
                     # Optional but recommended: A warning for names that don't match.
                     print(f"Warning: Actuator '{actuator_name}' in control mapping not found in components.")
@@ -207,7 +203,6 @@ class VehicleDynamics:
             omega_0: np.ndarray,
             tf: float,
             dt: float = 0.02,
-            gravity: bool = True,
             print_debug: bool = False,
             open_loop_control: OpenLoopControl = None
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -219,17 +214,36 @@ class VehicleDynamics:
         :param omega_0: The initial omega [x, y, z] (rad/s)
         :param tf: The time of simulation (s)
         :param dt: The fixed time step for the integrator
-        :param gravity: Boolean for active gravity
-        :param casadi: If True, uses the CasADi integrator; otherwise, uses SciPy
         :param print_debug: Boolean for printing debugging information
         :param open_loop_control: Open loop control object that commands the aero vehicle
         :return: The time and state for every simulation step
         """
         state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
-        control = np.array([0, 0, 0, 0, 0])
+        control = np.deg2rad(np.array([15, 0, 0, 20]))
 
-        x_dot = self.dynamics(state_0, control)
-        print(1)
+        #deflections = self.allocation_matrix @ control
+
+        dynamics_6dof = lambda t, state: self.dynamics(state, control).full().flatten()
+
+        t_span = (0, tf)
+
+        num_points = int(tf / dt) + 1
+
+        # Create the array of time points for the solver to output
+        t_eval = np.linspace(t_span[0], t_span[1], num_points)
+
+        solution = solve_ivp(
+            dynamics_6dof,
+            t_span,
+            state_0,
+            t_eval=t_eval,
+            rtol=1e-5,
+            atol=1e-5
+        )
+
+        u_values = np.tile(control, (num_points, 1))
+
+        return solution['t'], solution['y'], u_values.T
 
     '''
     def run_sim(

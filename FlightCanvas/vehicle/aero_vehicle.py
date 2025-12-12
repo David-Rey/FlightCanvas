@@ -100,7 +100,6 @@ class AeroVehicle:
         omega_0: np.ndarray,
         tf: float,
         dt: float = 0.02,
-        gravity: bool = True,
         print_debug: bool = False,
         open_loop_control: OpenLoopControl = None
     ):
@@ -116,7 +115,7 @@ class AeroVehicle:
         :param print_debug: Boolean for printing debugging information
         :param open_loop_control: Open loop control object that commands the aero vehicle
         """
-        self.simT, self.simX, self.simU = self.vehicle_dynamics.run_sim(pos_0, vel_0, quat_0, omega_0, tf, dt, gravity, print_debug, open_loop_control)
+        self.simT, self.simX, self.simU = self.vehicle_dynamics.run_sim(pos_0, vel_0, quat_0, omega_0, tf, dt, print_debug, open_loop_control)
 
 
     def init_buildup_manager(self):
