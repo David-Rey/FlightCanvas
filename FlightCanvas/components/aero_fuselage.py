@@ -5,7 +5,7 @@ import numpy as np
 
 from .aero_component import AeroComponent
 from FlightCanvas import utils
-from FlightCanvas.actuators.actuators import ActuatorModel
+from FlightCanvas.OLD.actuators.actuators import ActuatorModel
 from typing import Optional, Union, List
 
 

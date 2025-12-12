@@ -3,7 +3,7 @@ import aerosandbox.numpy as np
 
 from scipy.interpolate import splprep, splev
 
-from FlightCanvas.actuators.actuators import DirectDerivative
+from FlightCanvas.OLD.actuators.actuators import DirectDerivative
 from FlightCanvas.components.aero_fuselage import AeroFuselage
 from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 from FlightCanvas.components.aero_wing import create_planar_wing_pair

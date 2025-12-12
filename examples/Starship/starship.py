@@ -6,7 +6,7 @@ from scipy.interpolate import splprep, splev
 from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 from FlightCanvas.components.aero_fuselage import AeroFuselage
 from FlightCanvas.components.aero_wing import create_planar_wing_pair, AeroWing
-from FlightCanvas.actuators.actuators import DirectDerivative
+from FlightCanvas.OLD.actuators.actuators import DirectDerivative
 from FlightCanvas.vehicle.vehicle_visualizer import VehicleVisualizer
 from examples.Starship.starship_visualization import StarshipVisualizer
 from starship_controller import StarshipController
@@ -53,7 +53,6 @@ class Starship:
             xyz_ref=[self.cg_x, 0, 0],
             components=all_components,
         )
-        self.vehicle.set_control_mapping(control_mapping)
 
         # Set mass and inertia properties
         self._set_mass_properties()
@@ -68,8 +67,8 @@ class Starship:
             self.vehicle.compute_buildup()
             self.vehicle.save_buildup()
 
-        # Define vehicle dynamics
-        self.vehicle.init_vehicle_dynamics()
+        # Init vehicle dynamics
+        self.vehicle.init_vehicle_dynamics(control_mapping)
 
         # Create Visualizer
         self.visualizer = VehicleVisualizer(self.vehicle)
@@ -293,22 +292,23 @@ class Starship:
         tf = 20
 
         self.vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, delta_0, tf,
-                            casadi=False, open_loop_control=None, gravity=True)
+                            open_loop_control=None, gravity=True)
+
 
 if __name__ == '__main__':
     # Create an instance of the entire Starship model
     starship = Starship()
     starship.update_moment()
-    timer = True
+    #timer = True
 
-    if timer:
-        start_time = time.time()
-        starship.init_controller()
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        print(f"init_controller() took {elapsed_time} seconds to execute.")
+    #if timer:
+    #    start_time = time.time()
+    #    starship.init_controller()
+    #    end_time = time.time()
+    #    elapsed_time = end_time - start_time
+    #    print(f"init_controller() took {elapsed_time} seconds to execute.")
 
-    starship.run_mpc()
+    starship.run_sim()
 
     starship_visualizer = StarshipVisualizer(starship.vehicle)
     #starship_visualizer.init_actors(color='lightblue', show_edges=False, opacity=1)

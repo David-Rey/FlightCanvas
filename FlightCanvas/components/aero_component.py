@@ -8,10 +8,8 @@ import numpy as np
 import pyvista as pv
 
 from FlightCanvas import utils
-from FlightCanvas.actuators.actuators import ActuatorModel
+from FlightCanvas.OLD.actuators.actuators import ActuatorModel
 from FlightCanvas.buildup.buildup_manager import BuildupManager
-from FlightCanvas.buildup.buildup_aero import BuildupAero
-from FlightCanvas.buildup.buildup_manager_old import BuildupManagerOld
 
 
 class AeroComponent(ABC):
@@ -280,8 +278,7 @@ class AeroComponent(ABC):
         :param component: The aerodynamic component to perform the buildup on
         """
         if self.is_prime:
-            #self.buildup_manager = BuildupManager(self.name, vehicle_path, component)
-            self.buildup_manager = BuildupManagerOld(self.name, vehicle_path, component)
+            self.buildup_manager = BuildupManager(self.name, vehicle_path, component)
 
     def compute_buildup(self):
         """

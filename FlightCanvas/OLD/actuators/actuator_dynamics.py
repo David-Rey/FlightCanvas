@@ -5,6 +5,7 @@ from typing import List, Dict, Optional, Union
 import numpy as np
 import casadi as ca
 
+
 @dataclass
 class ActuatorData:
     """
@@ -174,7 +175,7 @@ if __name__ == "__main__":
 
     from scipy.interpolate import splprep, splev
 
-    from FlightCanvas.actuators.actuators import FirstOrderDeflection, SecondOrderDeflection
+    from FlightCanvas.OLD.actuators.actuators import FirstOrderDeflection, SecondOrderDeflection
     from FlightCanvas.components.aero_fuselage import AeroFuselage
     from FlightCanvas.components.aero_wing import create_planar_wing_pair
 
