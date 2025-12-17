@@ -265,7 +265,6 @@ class Starship:
         y_coords = np.concatenate([y_upper, y_lower[::-1]])
         return np.vstack([x_coords, y_coords]).T
 
-
     def run_sim(self):
         """
         Runs static simulation
