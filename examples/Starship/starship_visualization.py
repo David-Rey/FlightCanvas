@@ -1,6 +1,6 @@
 
 from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
-from FlightCanvas.vehicle.vehicle_visualizer import VehicleVisualizer
+from FlightCanvas.analysis.vehicle_visualizer import VehicleVisualizer
 import pyvista as pv
 import numpy as np
 from FlightCanvas import utils

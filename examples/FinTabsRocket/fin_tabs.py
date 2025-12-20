@@ -9,7 +9,7 @@ from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 from FlightCanvas.components.aero_fuselage import AeroFuselage
 from FlightCanvas.components.aero_wing import AeroWing, create_axial_wing_pair
 
-from FlightCanvas.vehicle.vehicle_visualizer import VehicleVisualizer
+from FlightCanvas.analysis.vehicle_visualizer import VehicleVisualizer
 
 from FlightCanvas import utils
 

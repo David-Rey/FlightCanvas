@@ -7,12 +7,11 @@ from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 from FlightCanvas.components.aero_fuselage import AeroFuselage
 from FlightCanvas.components.aero_wing import create_planar_wing_pair, AeroWing
 from FlightCanvas.OLD.actuators.actuators import DirectDerivative
-from FlightCanvas.vehicle.vehicle_visualizer import VehicleVisualizer
-from examples.Starship.starship_visualization import StarshipVisualizer
-from starship_controller import StarshipController
+from FlightCanvas.analysis.vehicle_visualizer import VehicleVisualizer
+from FlightCanvas.Flight.Flight import Flight
+from FlightCanvas.analysis.log import Log
 
 from typing import Dict, List
-import time
 
 from FlightCanvas import utils
 
@@ -63,7 +62,6 @@ class Starship:
             self.vehicle.load_buildup()
         except:
             print("Build up data not found. Creating new aerodynamic buildup data...")
-            #print("Error: {}".format(e))
             self.vehicle.compute_buildup()
             self.vehicle.save_buildup()
 
@@ -72,25 +70,6 @@ class Starship:
         # Init vehicle dynamics
         self.vehicle.init_vehicle_dynamics(control_mapping)
 
-        # Create Visualizer
-        self.visualizer = VehicleVisualizer(self.vehicle)
-
-    def init_controller(self):
-        """
-        Initialize the controller for the vehicle
-        """
-        # Define OptimalController
-        Nsim = 200
-        N_horizon = 120
-        tf = 10  # from horizon (dt = tf/N_horizon)
-        # true tf = dt * Nsim
-        true_dt = tf/N_horizon
-        sim_tf = true_dt * Nsim
-
-        print(f"Simulator true_dt is {true_dt}")
-        print(f"Simulator sim_tf is {sim_tf}")
-
-        self.vehicle.controller = StarshipController(self.vehicle, Nsim, N_horizon, tf)
 
     def save_buildup(self):
         """
@@ -269,19 +248,34 @@ class Starship:
         """
         Runs static simulation
         """
+
+        state_names = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'q0', 'q1', 'q2', 'q3', 'wx', 'wy', 'wz']
+        control_input_names = ['f1', 'f2', 'f3', 'f4']
+        maxSteps = 1000
+        log = Log(state_names, control_input_names, maxSteps)
+
+        dt = 0.01
+        tf = 20
+        flight = Flight(self.vehicle, tf, dt=dt)
+
         pos_0 = np.array([0, 0, 1000])  # Initial position
         vel_0 = np.array([0, 0, -1])  # Initial velocity
         quat_0 = utils.euler_to_quat((0, 0, 0))
         omega_0 = np.array([0, 0, 0])  # Initial angular velocity
-        tf = 20
+        inital_state = np.concatenate((pos_0, vel_0, quat_0, omega_0))
 
-        self.vehicle.run_sim(pos_0, vel_0, quat_0, omega_0, tf, open_loop_control=None)
+        flight.run_sim(inital_state, log)
+
+        vv = VehicleVisualizer(self.vehicle, log)
+
+        vv.init_actors()
+        vv.add_grid()
+        vv.animate(cam_distance=50)
 
 
 if __name__ == '__main__':
     # Create an instance of the entire Starship model
     starship = Starship()
-    #starship.update_moment()
     #timer = True
 
     #if timer:
@@ -293,12 +287,12 @@ if __name__ == '__main__':
 
     starship.run_sim()
 
-    starship_visualizer = StarshipVisualizer(starship.vehicle)
-    starship_visualizer.init_actors(color='lightblue', show_edges=False, opacity=1)
-    starship_visualizer.add_grid()
+    #starship_visualizer = StarshipVisualizer(starship.vehicle)
+    #starship_visualizer.init_actors(color='lightblue', show_edges=False, opacity=1)
+    #starship_visualizer.add_grid()
     #starship_visualizer.generate_square_traj()
     #starship_visualizer.generate_z_line()
-    starship_visualizer.animate(cam_distance=70, debug=False)
+    #starship_visualizer.animate(cam_distance=70, debug=False)
     #starship_visualizer.animate_mpc_horizon(save_path='mcp_state.mp4')
 
     #starship.vehicle.compute_buildup()

@@ -17,6 +17,8 @@ class VehicleDynamics:
     TODO
     """
 
+    full_dynamics: ca.Function
+
     def __init__(
             self,
             mass: float,
@@ -28,13 +30,13 @@ class VehicleDynamics:
         self.moi = moi
         self.components = components
         self.control_mapping = control_mapping
-        self.num_control_inputs = len(control_mapping)
-        gravity = True
-
+        self.num_control_inputs = 0
         self.num_actuator_inputs_comp = len(components)
+        if self.control_mapping is not None:
+            self.num_control_inputs = len(control_mapping)
+            self.allocation_matrix = self.create_allocation_matrix()
 
-        self.allocation_matrix = self.create_allocation_matrix()
-        self.dynamics = self.create_casadi_model(gravity)
+        self.create_casadi_model()
 
     def compute_forces_and_moments(
             self,
@@ -126,15 +128,10 @@ class VehicleDynamics:
 
         return v_dot, omega_dot, quat_dot
 
-    def create_casadi_model(
-        self,
-        gravity: bool,
-    ):
+    def create_casadi_model(self):
         """
         TODO
         """
-
-        g = ca.MX([0, 0, -9.81]) if gravity else ca.MX([0, 0, 0])
 
         # Define Symbolic State and Dynamics
         pos_I = ca.MX.sym('pos_I', 3)
@@ -145,9 +142,11 @@ class VehicleDynamics:
         # Define Symbolic Controls
         num_deflection_states = self.num_control_inputs
         control_inputs = ca.MX.sym('control_inputs', num_deflection_states)
-        #control_inputs = ca.MX.sym('control_inputs', 5)
+        g = ca.MX.sym('g', 3)
 
-        component_deflections = self.allocation_matrix @ control_inputs
+        component_deflections = np.zeros(self.num_actuator_inputs_comp)
+        if self.num_control_inputs != 0:
+            component_deflections = self.allocation_matrix @ control_inputs
 
         # concat state into a single variable
         state = ca.vertcat(pos_I, vel_I, quat, omega_B)
@@ -158,9 +157,15 @@ class VehicleDynamics:
         state_dot = ca.vertcat(vel_I, v_dot, quat_dot, omega_dot)
 
         # create casadi function of dynamics
-        f = Function('dynamics', [state, control_inputs], [state_dot])
+        self.full_dynamics = Function('dynamics', [state, control_inputs, g], [state_dot])
 
-        return f
+    def dynamics(self, state, control_inputs, gravity=True):
+        if self.full_dynamics is None:
+            self.create_casadi_model()
+        if gravity:
+            return self.full_dynamics(state, control_inputs, np.array([0, 0, -9.81]))
+        else:
+            return self.full_dynamics(state, control_inputs, np.array([0, 0, 0]))
 
     def create_allocation_matrix(self) -> np.ndarray:
         """
@@ -195,6 +200,7 @@ class VehicleDynamics:
 
         return allocation_matrix
 
+    """
     def run_sim(
             self,
             pos_0: np.ndarray,
@@ -206,7 +212,7 @@ class VehicleDynamics:
             print_debug: bool = False,
             open_loop_control: OpenLoopControl = None
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
+        
         Runs simulation of 6 Degree of Freedom model with no control
         :param pos_0: The initial position [x, y, z] (m)
         :param vel_0: The initial velocity [x, y, z] (m/s)
@@ -217,7 +223,7 @@ class VehicleDynamics:
         :param print_debug: Boolean for printing debugging information
         :param open_loop_control: Open loop control object that commands the aero vehicle
         :return: The time and state for every simulation step
-        """
+        
         state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
         control = np.deg2rad(np.array([15, 0, 0, 20]))
 
@@ -244,6 +250,7 @@ class VehicleDynamics:
         u_values = np.tile(control, (num_points, 1))
 
         return solution['t'], solution['y'], u_values.T
+    """
 
     '''
     def run_sim(

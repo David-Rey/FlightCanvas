@@ -5,11 +5,13 @@ from pyvista import Text, TextProperty
 from typing import Optional
 import numpy as np
 from FlightCanvas import utils
+from FlightCanvas.analysis.log import Log
 
 
 class VehicleVisualizer:
-    def __init__(self, vehicle: AeroVehicle):
+    def __init__(self, vehicle: AeroVehicle, log: Log):
         self.vehicle = vehicle
+        self.log = log
 
         self.cg_sphere = None
 
@@ -144,7 +146,9 @@ class VehicleVisualizer:
         :param cam_distance: The distance from the camera to center of mass
         :param fps: The frames per second of animation
         """
-        t_arr, x_arr, u_arr = self.vehicle.get_control_history()
+        x_arr = self.log.states
+        u_arr = self.log.control_inputs
+        t_arr = self.log.time
 
         if show_text:
             self.init_text()
@@ -157,7 +161,8 @@ class VehicleVisualizer:
 
         # output location
         # TODO: fix this
-        video_filename = '../../animation.mp4'
+        #video_filename = '../../animation.mp4'
+        video_filename = 'animation.mp4'
 
         # start movie
         self.pl.open_movie(video_filename, framerate=fps, quality=9)
@@ -167,13 +172,9 @@ class VehicleVisualizer:
             state, control = utils.interp_state(t_arr, x_arr, u_arr, sim_time)
             state[0] = -state[0]
 
-            true_deflection = self.vehicle.vehicle_dynamics.allocation_matrix @ control
-            #true_deflection = control
-
-            #true_deflection = None
-            #if self.vehicle.actuator_dynamics is not None:
-                #deflection_state = state[13:]
-                #true_deflection = self.vehicle.actuator_dynamics.get_component_deflection(deflection_state, control)
+            true_deflection = np.zeros(self.vehicle.vehicle_dynamics.num_actuator_inputs_comp)
+            if self.vehicle.vehicle_dynamics.num_control_inputs != 0:
+                true_deflection = self.vehicle.vehicle_dynamics.allocation_matrix @ control
 
             # Update actors with interpolated state
             self.update_actors(state, true_deflection)

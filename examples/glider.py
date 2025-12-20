@@ -6,6 +6,9 @@ import aerosandbox.numpy as np
 from FlightCanvas.components.aero_fuselage import AeroFuselage
 from FlightCanvas.components.aero_wing import create_planar_wing_pair, AeroWing
 from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
+from FlightCanvas.analysis.log import Log
+from FlightCanvas.Flight.Flight import Flight
+from FlightCanvas.analysis.vehicle_visualizer import VehicleVisualizer
 
 from FlightCanvas import utils
 
@@ -77,17 +80,42 @@ if __name__ == '__main__':
         xyz_ref=[0.15, 0, 0],  # Vehicle's Center of Gravity
         components=all_components
     )
+    aero_vehicle.compute_buildup()
+    #aero_vehicle.save_buildup()
+    #aero_vehicle.load_buildup()
+    aero_vehicle.init_vehicle_dynamics(None)
 
-    # DEBUG
-    animate = 1
+    state_names = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'q0', 'q1', 'q2', 'q3', 'wx', 'wy', 'wz']
+    control_input_names = ['Mx', 'My', 'Mz']
+    maxSteps = 1000
+    log = Log(state_names, control_input_names, maxSteps)
+
+    dt = 0.01
+    tf = 20
+    flight = Flight(aero_vehicle, tf, dt=dt)
+
+    pos_0 = np.array([0, 0, 950])  # Initial position
+    vel_0 = np.array([90, 0, 0.01])  # Initial velocity
+    quat_0 = utils.euler_to_quat((0, 0, 0))
+    omega_0 = np.array([0, 0, 0])  # Initial angular velocity
+    inital_state = np.concatenate((pos_0, vel_0, quat_0, omega_0))
+
+    flight.run_sim(inital_state, log)
+
+    vv = VehicleVisualizer(aero_vehicle, log)
+
+    vv.init_actors()
+    vv.add_grid()
+    vv.animate()
+
 
     #aero_vehicle.compute_buildup()
     #aero_vehicle.save_buildup()
     #aero_vehicle.save_buildup_fig()
-    aero_vehicle.load_buildup()
+
 
     #aero_vehicle.test_new_buildup()
-
+    '''
     if animate:
         pos_0 = np.array([0, 0, 950])  # Initial position
         vel_0 = np.array([90, 0, 0.01])  # Initial velocity
@@ -104,3 +132,4 @@ if __name__ == '__main__':
         aero_vehicle.init_actors(color='lightblue', show_edges=False, opacity=0.8)
         aero_vehicle.init_debug()
         aero_vehicle.show()
+    '''

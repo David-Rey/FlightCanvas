@@ -58,10 +58,6 @@ class AeroVehicle:
         # Update transformation matrices for all components
         self.update_transform()
 
-        self.simX = None
-        self.simU = None
-        self.simT = None
-
     def update_transform(self):
         """
         Update transformation matrices for all components
@@ -86,37 +82,11 @@ class AeroVehicle:
         """
         self.moi = np.diag(np.array(moi_diag)) * self.mass
 
-    def init_vehicle_dynamics(self, control_mapping: dict):
+    def init_vehicle_dynamics(self, control_mapping: Union[None, dict]):
         """
         Creates dynamics in the form x_dot = f(t, x, u)
         """
         self.vehicle_dynamics = VehicleDynamics(self.mass, self.moi, self.components, control_mapping)
-
-    def run_sim(
-        self,
-        pos_0: np.ndarray,
-        vel_0: np.ndarray,
-        quat_0: np.ndarray,
-        omega_0: np.ndarray,
-        tf: float,
-        dt: float = 0.02,
-        print_debug: bool = False,
-        open_loop_control: OpenLoopControl = None
-    ):
-        """
-        Runs simulation of 6 Degree of Freedom model with no control
-        :param pos_0: The initial position [x, y, z] (m)
-        :param vel_0: The initial velocity [x, y, z] (m/s)
-        :param quat_0: The initial quaternion [q0, q1, q2, q3]
-        :param omega_0: The initial omega [x, y, z] (rad/s)
-        :param tf: The time of simulation (s)
-        :param dt: The fixed time step for the integrator
-        :param gravity: Boolean for active gravity
-        :param print_debug: Boolean for printing debugging information
-        :param open_loop_control: Open loop control object that commands the aero vehicle
-        """
-        self.simT, self.simX, self.simU = self.vehicle_dynamics.run_sim(pos_0, vel_0, quat_0, omega_0, tf, dt, print_debug, open_loop_control)
-
 
     def init_buildup_manager(self):
         """
@@ -163,12 +133,6 @@ class AeroVehicle:
         """
         for component in self.components:
             component.generate_mesh()
-
-    def get_control_history(self):
-        """
-        Return the complete control history for post-processing
-        """
-        return self.simT, self.simX, self.simU
 
     def test_new_buildup(self):
 

@@ -3,7 +3,7 @@ import pyvista as pv
 import numpy as np
 from typing import List, Union, Tuple
 import casadi as ca
-
+from typing import Callable
 
 def get_mesh(abs_mesh, translation_vector=None, **kwargs):
     """
@@ -590,3 +590,25 @@ def interp_state(t_arr: np.ndarray, x_arr: np.ndarray, u_arr: np.ndarray, sim_ti
     control = control0 + alpha * (control1 - control0)
 
     return state, control
+
+
+def rk4(f: Callable[[np.ndarray], np.ndarray], state: np.ndarray, dt: float) -> np.ndarray:
+    """
+    Fourth-order Runge-Kutta integration step.
+
+    Args:
+        f: A function handle (Callable) that computes the state derivative: xdot = f(x)
+        state: Current state vector (NumPy array)
+        dt: Time step size
+
+    Returns:
+        next_state: State vector after one RK4 step (NumPy array)
+    """
+    k1 = f(state)
+    k2 = f(state + (k1 * dt / 2))
+    k3 = f(state + (k2 * dt / 2))
+    k4 = f(state + (k3 * dt))
+
+    next_state = state + dt * ((1 / 6) * k1 + (1 / 3) * k2 + (1 / 3) * k3 + (1 / 6) * k4)
+
+    return next_state
