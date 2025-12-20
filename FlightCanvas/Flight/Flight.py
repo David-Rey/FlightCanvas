@@ -3,6 +3,7 @@ from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 import numpy as np
 import FlightCanvas.utils as utils
 
+
 class Flight:
     def __init__(self, aero_vehicle: AeroVehicle, final_time, dt=0.01, gravity=True):
         self.aero_vehicle = aero_vehicle

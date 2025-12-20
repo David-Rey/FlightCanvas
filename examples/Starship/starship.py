@@ -15,6 +15,7 @@ from typing import Dict, List
 
 from FlightCanvas import utils
 
+
 class Starship:
     """
     A class that defines and simulates a Starship-like aero vehicle.
@@ -70,7 +71,6 @@ class Starship:
         # Init vehicle dynamics
         self.vehicle.init_vehicle_dynamics(control_mapping)
 
-
     def save_buildup(self):
         """
         Saves the aerodynamic buildup data
@@ -112,7 +112,6 @@ class Starship:
 
         # Reassign the updated list back to the dictionary
         self.vehicle.components[0].buildup_manager.asb_data_static["M_b"] = F_b_list
-
 
     def _create_body(self) -> AeroFuselage:
         """
@@ -250,9 +249,9 @@ class Starship:
         """
 
         state_names = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'q0', 'q1', 'q2', 'q3', 'wx', 'wy', 'wz']
-        control_input_names = ['f1', 'f2', 'f3', 'f4']
+        deflection_names = ['f1', 'f2', 'f3', 'f4']
         maxSteps = 1000
-        log = Log(state_names, control_input_names, maxSteps)
+        log = Log(state_names, deflection_names, maxSteps)
 
         dt = 0.01
         tf = 20
@@ -276,33 +275,9 @@ class Starship:
 if __name__ == '__main__':
     # Create an instance of the entire Starship model
     starship = Starship()
-    #timer = True
-
-    #if timer:
-    #    start_time = time.time()
-    #    starship.init_controller()
-    #    end_time = time.time()
-    #    elapsed_time = end_time - start_time
-    #    print(f"init_controller() took {elapsed_time} seconds to execute.")
 
     starship.run_sim()
 
-    #starship_visualizer = StarshipVisualizer(starship.vehicle)
-    #starship_visualizer.init_actors(color='lightblue', show_edges=False, opacity=1)
-    #starship_visualizer.add_grid()
-    #starship_visualizer.generate_square_traj()
-    #starship_visualizer.generate_z_line()
-    #starship_visualizer.animate(cam_distance=70, debug=False)
-    #starship_visualizer.animate_mpc_horizon(save_path='mcp_state.mp4')
-
-    #starship.vehicle.compute_buildup()
-    #starship.vehicle.test_new_buildup()
-
-    #starship.save_buildup()
-    #starship.save_buildup_figs()
-
-    #starship.run_ocp()
-    #starship.run_sim()
 
 
 

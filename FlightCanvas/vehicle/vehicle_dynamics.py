@@ -159,7 +159,7 @@ class VehicleDynamics:
         # create casadi function of dynamics
         self.full_dynamics = Function('dynamics', [state, control_inputs, g], [state_dot])
 
-    def dynamics(self, state, control_inputs, gravity=True):
+    def dynamics(self, state: np.ndarray, control_inputs: np.ndarray, gravity=True):
         if self.full_dynamics is None:
             self.create_casadi_model()
         if gravity:

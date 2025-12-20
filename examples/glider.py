@@ -3,6 +3,7 @@
 import aerosandbox as asb
 import aerosandbox.numpy as np
 
+from FlightCanvas.analysis.anlaysis import Analysis
 from FlightCanvas.components.aero_fuselage import AeroFuselage
 from FlightCanvas.components.aero_wing import create_planar_wing_pair, AeroWing
 from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
@@ -91,7 +92,7 @@ if __name__ == '__main__':
     log = Log(state_names, control_input_names, maxSteps)
 
     dt = 0.01
-    tf = 20
+    tf = 22
     flight = Flight(aero_vehicle, tf, dt=dt)
 
     pos_0 = np.array([0, 0, 950])  # Initial position
@@ -102,11 +103,13 @@ if __name__ == '__main__':
 
     flight.run_sim(inital_state, log)
 
-    vv = VehicleVisualizer(aero_vehicle, log)
+    analysis = Analysis(log)
+    analysis.generate_velocity_plot()
 
-    vv.init_actors()
-    vv.add_grid()
-    vv.animate()
+    #vv = VehicleVisualizer(aero_vehicle, log)
+    #vv.init_actors()
+    #vv.add_grid()
+    #vv.animate()
 
 
     #aero_vehicle.compute_buildup()

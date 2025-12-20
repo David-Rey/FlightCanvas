@@ -9,7 +9,6 @@ from FlightCanvas.vehicle.vehicle_dynamics import VehicleDynamics
 
 # Local application imports
 from FlightCanvas.components.aero_component import AeroComponent
-from FlightCanvas.control.open_loop_control import OpenLoopControl
 
 
 class AeroVehicle:
@@ -36,12 +35,7 @@ class AeroVehicle:
         self.moi = self.mass * np.eye(3)
         self.components = components
 
-        self.actuator_dynamics = None
-
         self.vehicle_dynamics = None
-
-        self.controller = None
-
         self.vehicle_path = f'vehicle_saves/{self.name}'
 
         for i in range(len(self.components)):
@@ -84,7 +78,7 @@ class AeroVehicle:
 
     def init_vehicle_dynamics(self, control_mapping: Union[None, dict]):
         """
-        Creates dynamics in the form x_dot = f(t, x, u)
+        Creates dynamics in the form x_dot = f(x, u)
         """
         self.vehicle_dynamics = VehicleDynamics(self.mass, self.moi, self.components, control_mapping)
 
@@ -133,12 +127,3 @@ class AeroVehicle:
         """
         for component in self.components:
             component.generate_mesh()
-
-    def test_new_buildup(self):
-
-        comp = self.components[1]
-        F_b, M_b = comp.buildup_manager.get_forces_and_moments(0.05, 0.05, 50, 0, 0, 0)
-        print(f"F_b {F_b}")
-        print(f"M_b {M_b}")
-
-

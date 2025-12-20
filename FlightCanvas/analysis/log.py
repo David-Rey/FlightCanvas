@@ -2,14 +2,14 @@ import numpy as np
 
 
 class Log:
-    def __init__(self, state_names: list, control_input_names: list, max_steps: int):
+    def __init__(self, state_names: list, deflection_names: list, max_steps: int):
         """
         Initialize the logger with preallocated NumPy arrays.
         """
         self.state_names = list(state_names)
         self.state_dot_names = list(state_names)
         self.ekf_covariance_names = ['Px', 'Py', 'Pz', 'Vx', 'Vy', 'Vz']
-        self.control_input_names = list(control_input_names)
+        self.deflection_names = list(deflection_names)
         self.aero_forces_names = ['Fx', 'Fy', 'Fz']
         self.aero_moments_names = ['Mx', 'My', 'Mz']
 
@@ -22,7 +22,7 @@ class Log:
         self.state_dots = np.zeros((len(self.state_dot_names), self.max_steps))
         self.state_estimates = np.zeros((len(self.state_names), self.max_steps))
         self.ekf_covariances = np.zeros((len(self.ekf_covariance_names), self.max_steps))
-        self.control_inputs = np.zeros((len(self.control_input_names), self.max_steps))
+        self.control_inputs = np.zeros((len(self.deflection_names), self.max_steps))
         self.aero_forces = np.zeros((3, self.max_steps))
         self.aero_moments = np.zeros((3, self.max_steps))
 
@@ -61,7 +61,7 @@ class Log:
             self._validate_size(value, len(self.ekf_covariance_names), attr)
             self.ekf_covariances[:, self.current_idx] = value
         elif attr == 'control_inputs':
-            self._validate_size(value, len(self.control_input_names), attr)
+            self._validate_size(value, len(self.deflection_names), attr)
             self.control_inputs[:, self.current_idx] = value
         elif attr == 'aero_forces':
             self._validate_size(value, 3, attr)
@@ -116,4 +116,4 @@ class Log:
         return self._get_by_name(self.state_names, self.states, name)
 
     def get_control_input(self, name: str) -> np.ndarray:
-        return self._get_by_name(self.control_input_names, self.control_inputs, name)
+        return self._get_by_name(self.deflection_names, self.control_inputs, name)
