@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 # Use the smooth spline generator from the previous code
 def make_symbolic_smooth_spline_simple(n_waypoints, n_output_points=100, smoothness=0.3):
     """
-    Simplified smooth spline using weighted control points.
+    Simplified smooth spline using weighted starship_control points.
     This approach ensures ALL segments are curved, including endpoints.
     """
 
@@ -39,11 +39,11 @@ def make_symbolic_smooth_spline_simple(n_waypoints, n_output_points=100, smoothn
                 s = (t_val - t_start) / (t_end - t_start)
                 s = ca.fmax(0, ca.fmin(1, s))
 
-                # Get control points for smooth curve
+                # Get starship_control points for smooth curve
                 p0 = control_points[i]
                 p3 = control_points[i + 1]
 
-                # Create intermediate control points for smoothness
+                # Create intermediate starship_control points for smoothness
                 if i == 0:
                     # First segment: extrapolate backward
                     if n > 2:

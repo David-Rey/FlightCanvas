@@ -1,4 +1,3 @@
-
 import aerosandbox as asb
 import aerosandbox.numpy as np
 from scipy.interpolate import splprep, splev
@@ -7,13 +6,13 @@ from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 from FlightCanvas.components.aero_fuselage import AeroFuselage
 from FlightCanvas.components.aero_wing import create_planar_wing_pair, AeroWing
 from FlightCanvas.OLD.actuators.actuators import DirectDerivative
-from FlightCanvas.analysis.vehicle_visualizer import VehicleVisualizer
-from FlightCanvas.Flight.Flight import Flight
+from FlightCanvas.Flight.flight import Flight
 from FlightCanvas.analysis.log import Log
+from FlightCanvas.analysis.vehicle_visualizer import VehicleVisualizer
+from FlightCanvas.analysis.anlaysis import Analysis
+from examples.Starship.starship_trimpoints import Trimpoints
 
 from typing import Dict, List
-
-from FlightCanvas import utils
 
 
 class Starship:
@@ -21,18 +20,18 @@ class Starship:
     A class that defines and simulates a Starship-like aero vehicle.
 
     This class encapsulates the geometry, aerodynamics, mass properties,
-    and control systems for the vehicle, and provides methods to run
+    and starship_control systems for the vehicle, and provides methods to run
     simulations and visualizations.
     """
 
-    def __init__(self, cg_x=25.0, height=50.0, diameter=9.0):
+    def __init__(self, cg_x=25, height=50.0, diameter=9.0):
         """
         Initializes and builds the Starship vehicle model
         :param cg_x: The initial cg in x direction in m
         :param height: The height in m
         :param diameter: The diameter in m
         """
-        # Store geometric parameters19
+        # Store geometric parameters
         self.cg_x = cg_x
         self.height = height
         self.diameter = diameter
@@ -44,7 +43,7 @@ class Starship:
 
         all_components = [body, *front_flaps, *back_flaps]
 
-        # Define the control mapping
+        # Define the starship_control mapping
         control_mapping = self._get_control_mapping()
 
         # Assemble the AeroVehicle
@@ -105,7 +104,7 @@ class Starship:
         F_b_list = list(F_b_tuple)
 
         # Access the moment value and update it within the new list
-        My = F_b_list[1] * 0.55
+        My = F_b_list[1] * 0.50
 
         # Perform the item assignment on the list
         F_b_list[1] = My
@@ -174,29 +173,29 @@ class Starship:
     @staticmethod
     def _get_control_mapping() -> Dict[str, Dict[str, float]]:
         """
-        Define how abstract control commands map to individual flap deflections
+        Define how abstract starship_control commands map to individual flap deflections
         :return: Control mapping from abstract commands to flap deflections
         """
         return {
-            "pitch control": {
+            "pitch starship_control": {
                 "Front Flap": 1.0,
                 "Front Flap Star": 1.0,
                 "Aft Flap": -1.0,
                 "Aft Flap Star": -1.0
             },
-            "roll control": {
+            "roll starship_control": {
                 "Front Flap": 1.0,
                 "Front Flap Star": -1.0,
                 "Aft Flap": 1.0,
                 "Aft Flap Star": -1.0
             },
-            "yaw control": {
+            "yaw starship_control": {
                 "Front Flap": -1.0,
                 "Front Flap Star": 1.0,
                 "Aft Flap": 1.0,
                 "Aft Flap Star": -1.0
             },
-            "drag control": {
+            "drag starship_control": {
                 "Front Flap": 1.0,
                 "Front Flap Star": 1.0,
                 "Aft Flap": 1.0,
@@ -229,12 +228,13 @@ class Starship:
         ])
         scaled_points = np.copy(points)
         scaled_points[:, 1] *= diameter / 4.5 / 2
-        return self._smooth_path(scaled_points, smoothing_factor=0.002, n_points=n_points) if smoothed else scaled_points
+        return self._smooth_path(scaled_points, smoothing_factor=0.002,
+                                 n_points=n_points) if smoothed else scaled_points
 
     @staticmethod
     def _flat_plate_airfoil(thickness=0.01, n_points=100) -> np.ndarray:
         """
-        Generate flat plate airfoil coordinates for control surfaces
+        Generate flat plate airfoil coordinates for starship_control surfaces
         """
         x = np.linspace(1, 0, n_points)
         y_upper = thickness / 2 * np.ones_like(x)
@@ -249,21 +249,27 @@ class Starship:
         """
 
         state_names = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'q0', 'q1', 'q2', 'q3', 'wx', 'wy', 'wz']
-        deflection_names = ['f1', 'f2', 'f3', 'f4']
-        maxSteps = 1000
+        deflection_names = ['b0', 'f1', 'f2', 'f3', 'f4']
+        maxSteps = 2000
         log = Log(state_names, deflection_names, maxSteps)
 
         dt = 0.01
-        tf = 20
+        tf = 22
         flight = Flight(self.vehicle, tf, dt=dt)
 
-        pos_0 = np.array([0, 0, 1000])  # Initial position
-        vel_0 = np.array([0, 0, -1])  # Initial velocity
-        quat_0 = utils.euler_to_quat((0, 0, 0))
-        omega_0 = np.array([0, 0, 0])  # Initial angular velocity
-        inital_state = np.concatenate((pos_0, vel_0, quat_0, omega_0))
+        trim = Trimpoints(self.vehicle.vehicle_dynamics)
 
-        flight.run_sim(inital_state, log)
+        #starship_control = StarshipController(sys)
+        #starship_control.compute_lqr()
+
+        inital_state, inital_control, _ = trim.find_trimpoint()
+        trim.get_LQR_control()
+
+        inital_state[2] = 1000
+        flight.run_sim(inital_state, trim, log)
+
+        analysis = Analysis(log)
+        analysis.generate_velocity_plot()
 
         vv = VehicleVisualizer(self.vehicle, log)
 
@@ -277,8 +283,3 @@ if __name__ == '__main__':
     starship = Starship()
 
     starship.run_sim()
-
-
-
-
-

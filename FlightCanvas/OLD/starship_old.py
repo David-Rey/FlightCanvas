@@ -9,7 +9,7 @@ from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 from FlightCanvas.components.aero_wing import create_planar_wing_pair
 
 from FlightCanvas import utils
-from FlightCanvas.control.open_loop_control import OpenLoopControl
+from FlightCanvas.OLD.open_loop_control import OpenLoopControl
 
 def _smooth_path(points, smoothing_factor=0, n_points=500):
     tck, u = splprep(points.T, s=smoothing_factor)
@@ -164,40 +164,40 @@ if __name__ == '__main__':
 
     # Values are another dict mapping component names to their gain.
     control_mapping = {
-        "control 1": {
+        "starship_control 1": {
             "Front Flap": 1.0
         },
-        "control 2": {
+        "starship_control 2": {
             "Front Flap Star": 1.0
         },
-        "control 3": {
+        "starship_control 3": {
             "Back Flap": 1.0
         },
-        "control 4": {
+        "starship_control 4": {
             "Back Flap Star": 1.0
         }
     }
 
     control_mapping_2 = {
-        "pitch control": {
+        "pitch starship_control": {
             "Front Flap": 1.0,
             "Front Flap Star": 1.0,
             "Back Flap": -1.0,
             "Back Flap Star": -1.0
         },
-        "roll control": {
+        "roll starship_control": {
             "Front Flap": 1.0,
             "Front Flap Star": -1.0,
             "Back Flap": 1.0,
             "Back Flap Star": -1.0
         },
-        "yaw control": {
+        "yaw starship_control": {
             "Front Flap": -1.0,
             "Front Flap Star": 1.0,
             "Back Flap": 1.0,
             "Back Flap Star": -1.0
         },
-        "drag control": {
+        "drag starship_control": {
             "Front Flap": 1.0,
             "Front Flap Star": 1.0,
             "Back Flap": 1.0,

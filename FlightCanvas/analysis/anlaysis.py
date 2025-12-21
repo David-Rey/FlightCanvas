@@ -45,10 +45,15 @@ class Analysis:
         rot = R.from_quat(quat_matrix)
         euler = rot.as_euler('zyx', degrees=True)  # Returns (N, 3) matrix
 
+
+        pitch = np.rad2deg(np.arcsin(2 * (q3 * q1 - q2 * q0)))
+
         # Plotting
         plt.figure(figsize=(10, 6))
         plt.plot(time, euler[:, 0], label='Yaw (Z)')
+
         plt.plot(time, euler[:, 1], label='Pitch (Y)')
+        #plt.plot(time, pitch, label='Pitch (Y)')
         plt.plot(time, euler[:, 2], label='Roll (X)')
 
         plt.xlabel('Time (s)')
@@ -58,4 +63,25 @@ class Analysis:
         plt.grid(True)
         plt.gcf().set_size_inches(6, 4)
         p.show_plot(rotate_axis_labels=False)
+
+    def generate_angular_velocity_plot(self):
+        time = self.log.time[0:self.log.current_idx+1]
+
+        wx = np.rad2deg(self.log.get_state("wx"))
+        wy = np.rad2deg(self.log.get_state("wy"))
+        wz = np.rad2deg(self.log.get_state("wz"))
+
+        plt.figure()
+        plt.plot(time, wx, label='wx (deg/s)')
+        plt.plot(time, wy, label='wy (deg/s)')
+        plt.plot(time, wz, label='wz (deg/s)')
+
+        plt.xlabel('Time (s)')
+        plt.ylabel('Angular Rate (deg)')
+        plt.title('Angular Rate')
+        plt.legend()
+        plt.grid(True)
+        plt.gcf().set_size_inches(6, 4)
+        p.show_plot(rotate_axis_labels=False)
+
 

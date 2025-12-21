@@ -15,7 +15,7 @@ from FlightCanvas.buildup.buildup_manager import BuildupManager
 class AeroComponent(ABC):
     """
     An abstract base class for a single aerodynamic component of a vehicle, such as a wing, fuselage,
-    or control surface.
+    or starship_control surface.
     """
 
     def __init__(
@@ -31,7 +31,7 @@ class AeroComponent(ABC):
         Initializes an AeroComponent object
         :param name: The name of the component
         :param ref_direction: The primary axis of the component (e.g., hinge axis)
-        :param control_pivot: The axis at which the component will rotate given a control input
+        :param control_pivot: The axis at which the component will rotate given a starship_control input
         :param is_prime: Flag to indicate if this is a primary component. If False, component does not hold aerodynamic buildup
         :param symmetric_comp: The AeroComponent object that is symmetric to the current AeroComponent object
         :param actuator_model: The actuator model object to use

@@ -31,11 +31,11 @@ class AeroWing(AeroComponent):
         Initializes the AeroWing component
         :param name: The name of the wing or wing section
         :param xsecs: A list of `aerosandbox.WingXSec` objects that define the wing's cross-sections
-        :param ref_direction: The primary axis for rotation, typically representing the hinge line of a control surface
-        :param control_pivot: The axis at which the component will rotate given a control input
+        :param ref_direction: The primary axis for rotation, typically representing the hinge line of a starship_control surface
+        :param control_pivot: The axis at which the component will rotate given a starship_control input
         :param is_prime: Inherited from AeroComponent. Used to identify the primary wing in a symmetric pair
         :param symmetric_comp: The symmetric component of the wing
-        :param actuator_model: The actuator model of the wing deflection around the control pivot
+        :param actuator_model: The actuator model of the wing deflection around the starship_control pivot
         :param kwargs:  Additional keyword arguments to be passed to the `aerosandbox.Wing` constructor
         """
         super().__init__(name, ref_direction, control_pivot=control_pivot, is_prime=is_prime,
@@ -81,9 +81,9 @@ def create_planar_wing_pair(
     :param name: The name of the wing or wing section
     :param xsecs: A list of `aerosandbox.WingXSec` objects that define the wing's cross-sections
     :param translation: The new reference position [x, y, z]
-    :param ref_direction: The primary axis for rotation, typically representing the hinge line of a control surface
-    :param control_pivot: The axis at which the component will rotate given a control input
-    :param actuator_model: The actuator model of the wing deflection around the control pivot
+    :param ref_direction: The primary axis for rotation, typically representing the hinge line of a starship_control surface
+    :param control_pivot: The axis at which the component will rotate given a starship_control input
+    :param actuator_model: The actuator model of the wing deflection around the starship_control pivot
     :param kwargs:  Additional keyword arguments to be passed to the `aerosandbox.Wing` constructor
     """
     # Create the right-hand wing wrapper from the provided cross-sections
@@ -150,9 +150,9 @@ def create_axial_wing_pair(
     :param name: The name of the wing or wing section
     :param xsecs: A list of `aerosandbox.WingXSec` objects that define the wing's cross-sections
     :param translation: The new reference position [x, y, z]
-    :param ref_direction: The primary axis for rotation, typically representing the hinge line of a control surface
-    :param control_pivot: The axis at which the component will rotate given a control input
-    :param actuator_model: The actuator model of the wing deflection around the control pivot
+    :param ref_direction: The primary axis for rotation, typically representing the hinge line of a starship_control surface
+    :param control_pivot: The axis at which the component will rotate given a starship_control input
+    :param actuator_model: The actuator model of the wing deflection around the starship_control pivot
     :param num_wings: The number of wings to create
     :param kwargs:  Additional keyword arguments to be passed to the `aerosandbox.Wing` constructor
     """

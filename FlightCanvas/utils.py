@@ -581,7 +581,7 @@ def interp_state(t_arr: np.ndarray, x_arr: np.ndarray, u_arr: np.ndarray, sim_ti
     state1 = x_arr[:, index + 1]
     state = state0 + alpha * (state1 - state0)
 
-    # Interpolate control
+    # Interpolate starship_control
     if u_arr.size == 0:
         return state, None
 

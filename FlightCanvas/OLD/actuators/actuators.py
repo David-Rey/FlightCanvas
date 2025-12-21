@@ -37,8 +37,8 @@ class ActuatorModel(ABC):
     @abstractmethod
     def get_control_matrix(self) -> Optional[np.ndarray]:
         """
-        Gets the control matrix (B matrix) for the actuator dynamics
-        :return: The control matrix with size, state_size x 1
+        Gets the starship_control matrix (B matrix) for the actuator dynamics
+        :return: The starship_control matrix with size, state_size x 1
         """
         pass
 
@@ -46,7 +46,7 @@ class ActuatorModel(ABC):
         """
         Constructs the symbolic state-space dynamics (Ax + Bu) for CasADi.
         :param state: The symbolic state vector (ca.MX).
-        :param command: The symbolic control input (ca.MX).
+        :param command: The symbolic starship_control input (ca.MX).
         :return: The CasADi expression for the state derivative.
         """
         A = ca.MX(self.get_system_matrix())
@@ -69,7 +69,7 @@ class ZeroOrderDeflection(ActuatorModel):
 
     def get_control_matrix(self) -> None:
         """
-        No control matrix for zero order deflection actuator
+        No starship_control matrix for zero order deflection actuator
         """
         return None
 
@@ -109,7 +109,7 @@ class DirectDerivative(ActuatorModel):
 
     def get_control_matrix(self) -> np.ndarray:
         """
-        Gets the control matrix (B matrix) for the Direct Derivative actuator dynamics
+        Gets the starship_control matrix (B matrix) for the Direct Derivative actuator dynamics
         """
         return np.array([1])
 
@@ -137,7 +137,7 @@ class SecondOrderDeflection(ActuatorModel):
 
     def get_control_matrix(self) -> Optional[np.ndarray]:
         """
-        Gets the control matrix (B matrix) for the 2nd order actuator dynamics.
+        Gets the starship_control matrix (B matrix) for the 2nd order actuator dynamics.
         """
         return np.array([0, self.wn**2])
 

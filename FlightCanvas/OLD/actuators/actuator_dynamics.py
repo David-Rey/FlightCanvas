@@ -44,7 +44,7 @@ class ActuatorDynamics:
         """
         Gets the actuator symbolic linear dynamics based
         :param state: casadi expression representing the deflection states
-        :param control: casadi expression representing the control inputs
+        :param control: casadi expression representing the starship_control inputs
         :return: casadi expression representing rate of change of dynamics
         """
         is_casadi = isinstance(state, (ca.SX, ca.MX))
@@ -79,7 +79,7 @@ class ActuatorDynamics:
 
     def create_allocation_matrix(self) -> np.ndarray:
         """
-        Creates the control allocation matrix for the vehicle.
+        Creates the starship_control allocation matrix for the vehicle.
         """
         # Get a sorted list of high-level command names for consistent column ordering.
         command_names = sorted(self.actuator_mapping.keys())
@@ -89,7 +89,7 @@ class ActuatorDynamics:
         actuator_name_to_data = {act.component_name: act for act in self.actuators}
 
         # Initialize the matrix. Rows correspond to the individual actuator inputs,
-        # and columns correspond to the high-level control commands.
+        # and columns correspond to the high-level starship_control commands.
         allocation_matrix = np.zeros(
             (self.num_actuator_inputs_comp, self.num_control_inputs)
         )
@@ -111,7 +111,7 @@ class ActuatorDynamics:
                         allocation_matrix[row_idx, col_idx] += gain
                 else:
                     # Optional but recommended: A warning for names that don't match.
-                    print(f"Warning: Actuator '{actuator_name}' in control mapping not found in components.")
+                    print(f"Warning: Actuator '{actuator_name}' in starship_control mapping not found in components.")
 
         return allocation_matrix
 
@@ -335,27 +335,27 @@ if __name__ == "__main__":
 
     # Values are another dict mapping component names to their gain.
     control_mapping = {
-        "control 1": {
+        "starship_control 1": {
             "Front Flap": 1.0
         },
-        "control 2": {
+        "starship_control 2": {
             "Front Flap Star": 1.0
         },
-        "control 3": {
+        "starship_control 3": {
             "Back Flap": 1.0
         },
-        "control 4": {
+        "starship_control 4": {
             "Back Flap": 1.1,
             "Back Flap Star": 1.0
         }
     }
 
     control_mapping_2 = {
-        "control 1": {
+        "starship_control 1": {
             "Front Flap": 1.0,
             "Front Flap Star": 1.0
         },
-        "control 2": {
+        "starship_control 2": {
             "Back Flap": 1.0,
             "Back Flap Star": 1.0
         }

@@ -1,5 +1,5 @@
 
-from FlightCanvas.control.optimal_controller import OptimalController
+from FlightCanvas.OLD.optimal_controller import OptimalController
 import scipy.linalg
 from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 from typing import Tuple
@@ -32,7 +32,7 @@ class StarshipController(OptimalController):
         self.ocp.dims.nx = self.nx
         self.ocp.dims.nu = self.nu
 
-        # Configure the optimal control problem
+        # Configure the optimal starship_control problem
         self.set_ocp_options()
         self.set_cost_function()
         self.set_constraints()
@@ -48,7 +48,7 @@ class StarshipController(OptimalController):
 
     def set_ocp_options(self):
         """
-        Configure solver options for the optimal control problem
+        Configure solver options for the optimal starship_control problem
         """
         self.ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
         self.ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
@@ -63,7 +63,7 @@ class StarshipController(OptimalController):
 
     def set_cost_function(self):
         """
-        Define the cost function for the optimal control problem
+        Define the cost function for the optimal starship_control problem
         """
         Q_omega = 2e1
         Q_pos = 1e-1
@@ -80,7 +80,7 @@ class StarshipController(OptimalController):
 
         q_ref = utils.euler_to_quat((0, 0, 25))
 
-        # Create diagonal R matrix for control costs
+        # Create diagonal R matrix for starship_control costs
         R_mat = np.diag(np.full(self.nu, R_controls))
 
         self.ocp.cost.cost_type = 'LINEAR_LS'
@@ -104,7 +104,7 @@ class StarshipController(OptimalController):
 
     def set_constraints(self):
         """
-        Define constraints for the optimal control problem.
+        Define constraints for the optimal starship_control problem.
 
         Sets up three types of constraints:
         1. Control input constraints (actuator rate limits)
@@ -114,7 +114,7 @@ class StarshipController(OptimalController):
         max_rate_rad_s = np.deg2rad(15.0)
         min_rate_rad_s = -max_rate_rad_s
 
-        self.ocp.constraints.idxbu = np.arange(self.nu)  # Constrain all control inputs
+        self.ocp.constraints.idxbu = np.arange(self.nu)  # Constrain all starship_control inputs
         self.ocp.constraints.lbu = np.full(self.nu, min_rate_rad_s)
         self.ocp.constraints.ubu = np.full(self.nu, max_rate_rad_s)
 
@@ -151,7 +151,7 @@ class StarshipController(OptimalController):
 
     def compute_control_input(self, k: int, state: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
-        Compute optimal control input using MPC at time step k
+        Compute optimal starship_control input using MPC at time step k
         """
         # set initial state
         if k == 0:

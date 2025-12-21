@@ -31,7 +31,7 @@ def make_symbolic_spline_distance(n_spline_waypoints, degree=3, n_samples=100):
     # For a 2D spline, we need to handle x and y coordinates separately or use the matrix form
 
     # Create the spline point using the correct bspline signature
-    # We need to transpose spline_w to have control points as columns
+    # We need to transpose spline_w to have starship_control points as columns
     spline_point = ca.bspline(u, spline_w.T, ca.DM(knots), [[0]], degree, {})
 
     # Create a reusable CasADi Function to evaluate the spline

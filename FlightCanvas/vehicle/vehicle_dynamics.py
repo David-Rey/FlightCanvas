@@ -1,11 +1,8 @@
 from FlightCanvas.components.aero_component import AeroComponent
-from FlightCanvas.OLD.actuators.actuator_dynamics import ActuatorDynamics
-from FlightCanvas.control.open_loop_control import OpenLoopControl
 
-from typing import List, Union, Tuple, Optional
+from typing import List, Union, Tuple
 import numpy as np
 import casadi as ca
-from scipy.integrate import solve_ivp
 from FlightCanvas import utils
 
 from casadi import Function
@@ -140,24 +137,19 @@ class VehicleDynamics:
         omega_B = ca.MX.sym('omega_B', 3)
 
         # Define Symbolic Controls
-        num_deflection_states = self.num_control_inputs
-        control_inputs = ca.MX.sym('control_inputs', num_deflection_states)
+        control_deflections = ca.MX.sym('control_deflections', self.num_actuator_inputs_comp)
         g = ca.MX.sym('g', 3)
-
-        component_deflections = np.zeros(self.num_actuator_inputs_comp)
-        if self.num_control_inputs != 0:
-            component_deflections = self.allocation_matrix @ control_inputs
 
         # concat state into a single variable
         state = ca.vertcat(pos_I, vel_I, quat, omega_B)
 
         # calculate x_dot
-        v_dot, omega_dot, quat_dot = self._calculate_rigid_body_derivatives(state, component_deflections, g)
+        v_dot, omega_dot, quat_dot = self._calculate_rigid_body_derivatives(state, control_deflections, g)
 
         state_dot = ca.vertcat(vel_I, v_dot, quat_dot, omega_dot)
 
         # create casadi function of dynamics
-        self.full_dynamics = Function('dynamics', [state, control_inputs, g], [state_dot])
+        self.full_dynamics = Function('dynamics', [state, control_deflections, g], [state_dot])
 
     def dynamics(self, state: np.ndarray, control_inputs: np.ndarray, gravity=True):
         if self.full_dynamics is None:
@@ -169,7 +161,7 @@ class VehicleDynamics:
 
     def create_allocation_matrix(self) -> np.ndarray:
         """
-        Creates the control allocation matrix for the vehicle.
+        Creates the starship_control allocation matrix for the vehicle.
         """
         # Get a sorted list of high-level command names for consistent column ordering.
         command_names = self.control_mapping.keys()
@@ -179,7 +171,7 @@ class VehicleDynamics:
         comp_lookup_by_index = {comp.name: i for i, comp in enumerate(self.components)}
 
         # Initialize the matrix. Rows correspond to the individual actuator inputs,
-        # and columns correspond to the high-level control commands.
+        # and columns correspond to the high-level starship_control commands.
         allocation_matrix = np.zeros(
             (self.num_actuator_inputs_comp, self.num_control_inputs)
         )
@@ -196,235 +188,7 @@ class VehicleDynamics:
                     allocation_matrix[row_idx, col_idx] += gain
                 else:
                     # Optional but recommended: A warning for names that don't match.
-                    print(f"Warning: Actuator '{actuator_name}' in control mapping not found in components.")
+                    print(f"Warning: Actuator '{actuator_name}' in starship_control mapping not found in components.")
 
         return allocation_matrix
-
-    """
-    def run_sim(
-            self,
-            pos_0: np.ndarray,
-            vel_0: np.ndarray,
-            quat_0: np.ndarray,
-            omega_0: np.ndarray,
-            tf: float,
-            dt: float = 0.02,
-            print_debug: bool = False,
-            open_loop_control: OpenLoopControl = None
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        
-        Runs simulation of 6 Degree of Freedom model with no control
-        :param pos_0: The initial position [x, y, z] (m)
-        :param vel_0: The initial velocity [x, y, z] (m/s)
-        :param quat_0: The initial quaternion [q0, q1, q2, q3]
-        :param omega_0: The initial omega [x, y, z] (rad/s)
-        :param tf: The time of simulation (s)
-        :param dt: The fixed time step for the integrator
-        :param print_debug: Boolean for printing debugging information
-        :param open_loop_control: Open loop control object that commands the aero vehicle
-        :return: The time and state for every simulation step
-        
-        state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
-        control = np.deg2rad(np.array([15, 0, 0, 20]))
-
-        #deflections = self.allocation_matrix @ control
-
-        dynamics_6dof = lambda t, state: self.dynamics(state, control).full().flatten()
-
-        t_span = (0, tf)
-
-        num_points = int(tf / dt) + 1
-
-        # Create the array of time points for the solver to output
-        t_eval = np.linspace(t_span[0], t_span[1], num_points)
-
-        solution = solve_ivp(
-            dynamics_6dof,
-            t_span,
-            state_0,
-            t_eval=t_eval,
-            rtol=1e-5,
-            atol=1e-5
-        )
-
-        u_values = np.tile(control, (num_points, 1))
-
-        return solution['t'], solution['y'], u_values.T
-    """
-
-    '''
-    def run_sim(
-            self,
-            pos_0: np.ndarray,
-            vel_0: np.ndarray,
-            quat_0: np.ndarray,
-            omega_0: np.ndarray,
-            delta_0: np.ndarray,
-            tf: float,
-            dt: float = 0.02,
-            gravity: bool = True,
-            casadi: bool = True,
-            print_debug: bool = False,
-            open_loop_control: OpenLoopControl = None
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Runs simulation of 6 Degree of Freedom model with no control
-        :param pos_0: The initial position [x, y, z] (m)
-        :param vel_0: The initial velocity [x, y, z] (m/s)
-        :param quat_0: The initial quaternion [q0, q1, q2, q3]
-        :param omega_0: The initial omega [x, y, z] (rad/s)
-        :param tf: The time of simulation (s)
-        :param dt: The fixed time step for the integrator
-        :param gravity: Boolean for active gravity
-        :param casadi: If True, uses the CasADi integrator; otherwise, uses SciPy
-        :param print_debug: Boolean for printing debugging information
-        :param open_loop_control: Open loop control object that commands the aero vehicle
-        :return: The time and state for every simulation step
-        """
-        if casadi:
-            # Call the CasADi-specific simulation function
-            return self.run_sim_c(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, open_loop_control)
-        else:
-            # Call the SciPy/NumPy-specific simulation function
-            return self.run_sim_scipy(pos_0, vel_0, quat_0, omega_0, delta_0, tf, dt, gravity, print_debug,
-                                      open_loop_control)
-    
-
-    def run_sim_scipy(
-            self,
-            pos_0: np.ndarray,
-            vel_0: np.ndarray,
-            quat_0: np.ndarray,
-            omega_0: np.ndarray,
-            delta_0: np.ndarray,
-            tf: float,
-            dt: float,
-            gravity: bool,
-            print_debug: bool,
-            open_loop_control: Optional[OpenLoopControl]
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Runs a 6DoF simulation using SciPy's adaptive-step ODE solver.
-        """
-        g = np.array([0, 0, -9.81]) if gravity else np.array([0, 0, 0])
-
-        def dynamics_6dof(t: float, state: np.ndarray) -> np.ndarray:
-            vel_I = state[3:6]
-
-            if print_debug:
-                print(f"Time: {t:.2f} s")
-
-            deflections_true = np.array([0])
-            v_dot, omega_dot, quat_dot = self._calculate_rigid_body_derivatives(state, deflections_true, g)
-
-            return np.concatenate((vel_I, v_dot, quat_dot, omega_dot))
-
-        state_0 = np.concatenate((pos_0, vel_0, quat_0, omega_0))
-        t_span = (0, tf)
-
-        num_points = int(tf / dt) + 1
-
-        # Create the array of time points for the solver to output
-        t_eval = np.linspace(t_span[0], t_span[1], num_points)
-
-        import time
-        start_time = time.perf_counter()
-        solution = solve_ivp(dynamics_6dof, t_span, state_0, t_eval=t_eval, rtol=1e-5, atol=1e-5)
-        end_time = time.perf_counter()
-        elapsed_time = end_time - start_time
-        print("Simulation finished.")
-        print(f"Total time for {num_points} nodes: {elapsed_time:.4f} seconds.")
-
-        # Get control
-        u_values = np.zeros((self.num_control_inputs, num_points))
-        if open_loop_control is not None:
-            u_values = np.array([open_loop_control.compute_control_input(t, None) for t in solution['t']]).T
-
-        return solution['t'], solution['y'], u_values
-
-
-
-
-    
-    def run_sim_acados(
-        self,
-        pos_0: np.ndarray,
-        vel_0: np.ndarray,
-        quat_0: np.ndarray,
-        omega_0: np.ndarray,
-        delta_0: np.ndarray,
-        tf: float,
-        dt: float,
-        gravity: bool,
-        open_loop_control: Optional[OpenLoopControl]
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Runs a 6DoF simulation using a fixed-step CasADi RK4 integrator.
-        """
-
-        if self.acados_model is None:
-            self.create_acados_model(gravity)
-
-        N_sim = int(tf / dt) + 1
-
-        sim = AcadosSim()
-
-        sim.model = self.acados_model
-        sim.solver_options.T = dt
-
-        sim.solver_options.integrator_type = 'IRK'
-        sim.solver_options.num_stages = 3
-        sim.solver_options.num_steps = 3
-        sim.solver_options.collocation_type = "GAUSS_RADAU_IIA"
-
-        nx = sim.model.x.rows()
-        if not sim.model.u:
-            nu = 0
-        else:
-            nu = sim.model.u.rows()
-
-        if delta_0 is None:
-            delta_0 = np.empty(0)
-        x0 = np.concatenate((pos_0, vel_0, quat_0, omega_0, delta_0))
-
-        acados_integrator = AcadosSimSolver(sim)
-
-        sim_x = np.zeros((N_sim + 1, nx))
-        sim_x[0, :] = x0
-        sim_u = np.zeros((N_sim + 1, nu))
-        sim_u[0, :] = np.zeros(nu)
-        if open_loop_control is not None:
-            sim_u[0, :] = open_loop_control.compute_control_input(0, None)
-
-        sim_t = np.zeros(N_sim + 1)
-
-        import time
-        start_time = time.perf_counter()
-        for i in range(N_sim):
-            u_current = np.zeros(nu)
-            if open_loop_control is not None:
-                u_current = open_loop_control.compute_control_input(sim_t[i], None)
-            sim_x[i + 1, :] = acados_integrator.simulate(x=sim_x[i, :], u=u_current)
-            sim_u[i + 1, :] = u_current
-            sim_t[i + 1] = (i + 1) * dt
-        end_time = time.perf_counter()
-        elapsed_time = end_time - start_time
-        print("Simulation finished.")
-        print(f"Total time for {N_sim} nodes: {elapsed_time:.4f} seconds.")
-
-        return sim_t, sim_x.T, sim_u.T
-    '''
-
-
-
-        #xdot = ca.MX.sym('xdot', nx, 1)
-        #model.xdot = xdot
-        #f_impl_expr = f_expl_expr - xdot
-
-        #model.f_expl_expr = f_expl_expr
-        #model.f_impl_expr = f_impl_expr#
-
-        #self.acados_model = model
-
-
 

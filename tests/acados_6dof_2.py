@@ -133,7 +133,7 @@ def create_rocket_model() -> AcadosModel:
 
 def main():
     """
-    Sets up and solves the free-time optimal control problem for the rocket landing.
+    Sets up and solves the free-time optimal starship_control problem for the rocket landing.
     """
     ocp = AcadosOcp()
     ocp.model = create_rocket_model()
@@ -376,7 +376,7 @@ if __name__ == '__main__':
     ocp.cost.cost_type = 'LINEAR_LS'
     ocp.cost.cost_type_e = 'LINEAR_LS'
 
-    # State and control penalty matrices for stage cost
+    # State and starship_control penalty matrices for stage cost
     Q = np.diag([
         0,  # mass
         5.0, 5.0, 10.0,  # r_x, r_y, r_z
@@ -385,7 +385,7 @@ if __name__ == '__main__':
         0.1, 0.1, 0.1,  # w_x, w_y, w_z
         0.0  # t_state (no penalty on running time)
     ])
-    R = np.diag([0.001, 0.001, 0.001])  # Penalty on thrust control
+    R = np.diag([0.001, 0.001, 0.001])  # Penalty on thrust starship_control
 
     # Terminal state penalty matrix
     W_time = 1.0  # Weight for minimizing the final time
@@ -422,7 +422,7 @@ if __name__ == '__main__':
         0.0  # Reference for final time is 0, so cost is W_time * (t(Tf) - 0)^2
     ])
 
-    # Target for stage cost (state part is yref_e, control part is zero)
+    # Target for stage cost (state part is yref_e, starship_control part is zero)
     yref = np.concatenate([yref_e, np.zeros(nu)])
 
     ocp.cost.yref = yref
@@ -465,7 +465,7 @@ if __name__ == '__main__':
             0.1, 0.1, 0.1,      # angular velocity
             0.0                 # time
         ])
-        # Main penalty on control usage to minimize fuel
+        # Main penalty on starship_control usage to minimize fuel
         R = np.diag([0.01, 0.01, 0.01])
         ocp.cost.W = sp.linalg.block_diag(Q, R)
 

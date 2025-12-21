@@ -93,7 +93,7 @@ class VehicleVisualizer:
         Draw text information on screen
         :param sim_time: Current simulation time
         :param state: Current vehicle state
-        :param control: Current control inputs
+        :param control: Current starship_control inputs
         :param true_deflection: Current true deflection angles
         """
         # Basic flight information
@@ -172,9 +172,7 @@ class VehicleVisualizer:
             state, control = utils.interp_state(t_arr, x_arr, u_arr, sim_time)
             state[0] = -state[0]
 
-            true_deflection = np.zeros(self.vehicle.vehicle_dynamics.num_actuator_inputs_comp)
-            if self.vehicle.vehicle_dynamics.num_control_inputs != 0:
-                true_deflection = self.vehicle.vehicle_dynamics.allocation_matrix @ control
+            true_deflection = control
 
             # Update actors with interpolated state
             self.update_actors(state, true_deflection)

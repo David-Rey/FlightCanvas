@@ -1,6 +1,6 @@
 from abc import abstractmethod
 
-from FlightCanvas.control.controller import BaseController
+from FlightCanvas.OLD.starship_controller_new import BaseController
 from FlightCanvas.vehicle.aero_vehicle import AeroVehicle
 from typing import Tuple
 

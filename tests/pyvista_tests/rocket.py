@@ -160,7 +160,7 @@ def create_interactive_thrust_demo():
         position='upper_right', font_size=12, color='white'
     )
 
-    # Keyboard callback for thrust control
+    # Keyboard callback for thrust starship_control
     def update_thrust_callback():
         def callback(obj, event):
             key = obj.GetKeySym()
@@ -250,7 +250,7 @@ def create_thrust_comparison():
 
 if __name__ == "__main__":
     print("Choose visualization:")
-    print("1. Interactive thrust control")
+    print("1. Interactive thrust starship_control")
     print("2. Thrust level comparison")
 
     choice = input("Enter choice (1 or 2): ").strip()

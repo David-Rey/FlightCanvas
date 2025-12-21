@@ -137,7 +137,7 @@ def main():
     ocp.cost.cost_type = 'LINEAR_LS'
     ocp.cost.cost_type_e = 'LINEAR_LS'
 
-    # State and control penalty matrices
+    # State and starship_control penalty matrices
     Q = np.diag([
         0,              # mass
         5.0, 5.0, 10.0, # r_x, r_y, r_z
@@ -145,7 +145,7 @@ def main():
         0.1, 0.1, 0.1, 0.1, # q (penalize deviation from reference)
         0.1, 0.1, 0.1   # w_x, w_y, w_z
     ])
-    R = np.diag([0.001, 0.001, 0.001]) # Penalty on thrust control
+    R = np.diag([0.001, 0.001, 0.001]) # Penalty on thrust starship_control
 
     # Terminal state penalty matrix
     Q_e = np.diag([
@@ -179,7 +179,7 @@ def main():
         0, 0, 0  # Zero angular rate
     ])
 
-    # Target for stage cost (state part is yref_e, control part is zero)
+    # Target for stage cost (state part is yref_e, starship_control part is zero)
     yref = np.concatenate([yref_e, np.zeros(nu)])
 
     ocp.cost.yref = yref

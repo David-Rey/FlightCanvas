@@ -76,7 +76,7 @@ class TransferFunctionSystem:
 
 class FCTransferFunction(TransferFunction):
     """
-    Extension of python-control's TransferFunction with:
+    Extension of python-starship_control's TransferFunction with:
     - Continuous-to-discrete conversion
     - Explicit time-domain update via a difference equation
     """

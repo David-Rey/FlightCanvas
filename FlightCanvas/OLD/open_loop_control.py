@@ -2,18 +2,18 @@ import numpy as np
 import casadi as ca
 from typing import List, Dict, Any, Union, Optional, Tuple
 import matplotlib.pyplot as plt
-from FlightCanvas.control.controller import BaseController
+from FlightCanvas.OLD.starship_controller_new import BaseController
 
 
 class OpenLoopControl(BaseController):
     """
-    Manages and generates open-loop control signals over time.
+    Manages and generates open-loop starship_control signals over time.
     """
 
     def __init__(self, num_inputs: int = 4):
         """
         Initializes the OpenLoopControl system.
-        :param num_inputs: The total number of control inputs (e.g., u1, u2, ...).
+        :param num_inputs: The total number of starship_control inputs (e.g., u1, u2, ...).
                            This determines the size of the output vector.
         """
         super().__init__()
@@ -22,9 +22,9 @@ class OpenLoopControl(BaseController):
 
     def add_step(self, u_indices: Union[int, List[int]], start_time: float, value: float):
         """
-        Adds a step input to one or more control channels.
+        Adds a step input to one or more starship_control channels.
 
-        :param u_indices: The control channel index or list of indices (0 for u1, 1 for u2, etc.).
+        :param u_indices: The starship_control channel index or list of indices (0 for u1, 1 for u2, etc.).
         :param start_time: The time (in seconds) when the step activates.
         :param value: The constant value of the signal after activation.
         """
@@ -46,8 +46,8 @@ class OpenLoopControl(BaseController):
     def add_ramp(self, u_indices: Union[int, List[int]], start_time: float, end_time: float, start_value: float,
                  end_value: float):
         """
-        Adds a ramp input to one or more control channels.
-        :param u_indices: The control channel index or list of indices (0 for u1, 1 for u2, etc.).
+        Adds a ramp input to one or more starship_control channels.
+        :param u_indices: The starship_control channel index or list of indices (0 for u1, 1 for u2, etc.).
         :param start_time: The time (in seconds) when the ramp begins.
         :param end_time: The time (in seconds) when the ramp ends.
         :param start_value: The value of the signal at the start of the ramp.
@@ -74,7 +74,7 @@ class OpenLoopControl(BaseController):
 
     def _get_u_casadi(self, t: ca.MX) -> ca.MX:
         """
-        Calculates the symbolic control vector using CasADi
+        Calculates the symbolic starship_control vector using CasADi
         """
         u = ca.MX.zeros(self.num_inputs)
         for signal in self._signals:
@@ -98,7 +98,7 @@ class OpenLoopControl(BaseController):
 
     def _get_u_numpy(self, t: float) -> np.ndarray:
         """
-        Calculates the numerical control vector using NumPy
+        Calculates the numerical starship_control vector using NumPy
         """
         u = np.zeros(self.num_inputs)
         for signal in self._signals:
@@ -126,9 +126,9 @@ class OpenLoopControl(BaseController):
 
     def get_u(self, t: Union[float, ca.MX]) -> Union[np.ndarray, ca.MX]:
         """
-        Calculates the control vector 'u' at a specific time 't'.
+        Calculates the starship_control vector 'u' at a specific time 't'.
         :param t: The current time.
-        :return: The control vector.
+        :return: The starship_control vector.
         """
         if isinstance(t, (ca.SX, ca.MX)):
             return self._get_u_casadi(t)
@@ -144,7 +144,7 @@ if __name__ == '__main__':
     controls = OpenLoopControl(num_inputs=4)
     print("-" * 20)
 
-    # Define the control sequence
+    # Define the starship_control sequence
     controls.add_ramp(u_indices=[0], start_time=3.0, end_time=5.0, start_value=0, end_value=10)  # u1
     controls.add_ramp(u_indices=[1], start_time=3.0, end_time=5.0, start_value=0, end_value=-5)  # u2
     controls.add_step(u_indices=[2, 3], start_time=7.0, value=2.5)  # u3

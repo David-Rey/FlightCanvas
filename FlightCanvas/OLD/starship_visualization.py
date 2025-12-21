@@ -304,7 +304,7 @@ class StarshipVisualizer(VehicleVisualizer):
                                 lines[f'horizon_control_{i}'].set_data(horizon_time_u[:min_len],
                                                                        horizon_control[:min_len])
                         except Exception as e:
-                            print(f"Error plotting control horizon {i}: {e}")
+                            print(f"Error plotting starship_control horizon {i}: {e}")
                             # Clear the line if there's an error
                             lines[f'horizon_control_{i}'].set_data([], [])
 

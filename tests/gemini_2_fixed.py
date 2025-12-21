@@ -147,7 +147,7 @@ def main():
     ocp.cost.Vx_e = Vx_e
 
     # --- Define References (y_ref) ---
-    # The reference is to land at the origin (x=0, z=0, etc.) and use zero control input.
+    # The reference is to land at the origin (x=0, z=0, etc.) and use zero starship_control input.
     #ocp.cost.yref_0 = np.zeros(ny_0)
     ocp.cost.yref = np.zeros(ny)
     ocp.cost.yref_e = np.zeros(ny_e)
