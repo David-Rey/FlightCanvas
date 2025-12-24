@@ -106,13 +106,25 @@ class VehicleDynamics:
         F_B, M_B = self.compute_forces_and_moments(state, deflections_true)
 
         # compute direction cosine matrix
-        C_I_B = dir_cosine_func(quat).T
+        C_B_I = dir_cosine_func(quat)   # INERTIAL frame to BODY frame.
+        #C_I_B = C_B_I.T                 # BODY frame to INERTIAL frame.
+
+        # Rotate Gravity into Body Frame
+        g_body = C_B_I @ g
+
+        # Body velocity
+        v_body = state[3:6]
+
+        # The Coriolis Term
+        coriolis_accel = cross_func(omega_B, v_body)
 
         # force in inertial frame
-        F_I = (C_I_B @ F_B) + self.mass * g
+        #F_I = (C_I_B @ F_B) + self.mass * g
+
+        #F_B =
 
         # calculate inertial acceleration
-        v_dot = F_I / self.mass
+        v_dot = (F_B / self.mass) + g_body - coriolis_accel
 
         # get moment of inertia
         J_B = array_func(self.moi)

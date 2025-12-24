@@ -107,8 +107,19 @@ class Trimpoints:
         # K is the matrix such that u = -Kx stabilizes (A - BK)
         self.K, S, E = ct.lqr(A, B, Q, R)
 
-        #C = np.array([[0, 0, 0, 1]])
+        #C = np.array([[1, 0, 0, 0]])
         #D = 0
+
+        #sys_ss = ct.ss(A, B, C, D)
+        #ss_tf = ct.ss2tf(sys_ss)
+        #ss_tf_feedback = ct.feedback(ss_tf, 1)
+
+        #from matplotlib import pyplot as plt
+
+        #ct.root_locus_map(ss_tf_feedback).plot()
+
+        #plt.show()
+
 
         # Create the closed-loop state-space system
         #sys_cl = ct.ss(A - B @ self.K, B, C, D)
@@ -116,7 +127,7 @@ class Trimpoints:
     def get_control(self, state):
         rom = self.pitch_ROM(state)
 
-        ref = np.array([10, 0, 0, 0])
+        ref = np.array([-10, 0, 0, 0])
 
         state_error = ref - rom + self.x_rom_star
         rel_pitch_control = self.K @ state_error
