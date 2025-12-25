@@ -2,13 +2,14 @@ import numpy as np
 
 
 class Log:
-    def __init__(self, state_names: list, deflection_names: list, max_steps: int):
+    def __init__(self, state_names: list, control_names: list, deflection_names: list, max_steps=1000):
         """
         Initialize the logger with preallocated NumPy arrays.
         """
         self.state_names = list(state_names)
         self.state_dot_names = list(state_names)
         self.ekf_covariance_names = ['Px', 'Py', 'Pz', 'Vx', 'Vy', 'Vz']
+        self.control_names = list(control_names)
         self.deflection_names = list(deflection_names)
         self.aero_forces_names = ['Fx', 'Fy', 'Fz']
         self.aero_moments_names = ['Mx', 'My', 'Mz']
@@ -22,7 +23,8 @@ class Log:
         self.state_dots = np.zeros((len(self.state_dot_names), self.max_steps))
         self.state_estimates = np.zeros((len(self.state_names), self.max_steps))
         self.ekf_covariances = np.zeros((len(self.ekf_covariance_names), self.max_steps))
-        self.control_inputs = np.zeros((len(self.deflection_names), self.max_steps))
+        self.control_inputs = np.zeros((len(self.control_names), self.max_steps))
+        self.deflections = np.zeros((len(self.deflection_names), self.max_steps))
         self.aero_forces = np.zeros((3, self.max_steps))
         self.aero_moments = np.zeros((3, self.max_steps))
 
@@ -60,9 +62,12 @@ class Log:
         elif attr == 'ekf_covariances':
             self._validate_size(value, len(self.ekf_covariance_names), attr)
             self.ekf_covariances[:, self.current_idx] = value
-        elif attr == 'control_inputs':
-            self._validate_size(value, len(self.deflection_names), attr)
+        elif attr == 'control':
+            self._validate_size(value, len(self.control_names), attr)
             self.control_inputs[:, self.current_idx] = value
+        elif attr == 'deflections':
+            self._validate_size(value, len(self.deflection_names), attr)
+            self.deflections[:, self.current_idx] = value
         elif attr == 'aero_forces':
             self._validate_size(value, 3, attr)
             self.aero_forces[:, self.current_idx] = value
@@ -86,6 +91,7 @@ class Log:
         self.state_estimates = self.state_estimates[:, valid_range]
         self.ekf_covariances = self.ekf_covariances[:, valid_range]
         self.control_inputs = self.control_inputs[:, valid_range]
+        self.deflections = self.deflections[:, valid_range]
         self.aero_forces = self.aero_forces[:, valid_range]
         self.aero_moments = self.aero_moments[:, valid_range]
 
@@ -100,6 +106,7 @@ class Log:
         self.state_estimates = np.hstack([self.state_estimates, np.zeros((self.state_estimates.shape[0], new_steps))])
         self.ekf_covariances = np.hstack([self.ekf_covariances, np.zeros((self.ekf_covariances.shape[0], new_steps))])
         self.control_inputs = np.hstack([self.control_inputs, np.zeros((self.control_inputs.shape[0], new_steps))])
+        self.deflections = np.hstack([self.deflections, np.zeros((self.deflections.shape[0], new_steps))])
         self.aero_forces = np.hstack([self.aero_forces, np.zeros((3, new_steps))])
         self.aero_moments = np.hstack([self.aero_moments, np.zeros((3, new_steps))])
 
@@ -116,4 +123,4 @@ class Log:
         return self._get_by_name(self.state_names, self.states, name)
 
     def get_control_input(self, name: str) -> np.ndarray:
-        return self._get_by_name(self.deflection_names, self.control_inputs, name)
+        return self._get_by_name(self.control_names, self.control_inputs, name)

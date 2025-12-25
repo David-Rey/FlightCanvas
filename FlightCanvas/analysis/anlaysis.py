@@ -45,7 +45,6 @@ class Analysis:
         rot = R.from_quat(quat_matrix)
         euler = rot.as_euler('zyx', degrees=True)  # Returns (N, 3) matrix
 
-
         pitch = np.rad2deg(np.arcsin(2 * (q3 * q1 - q2 * q0)))
 
         # Plotting
@@ -84,4 +83,43 @@ class Analysis:
         plt.gcf().set_size_inches(6, 4)
         p.show_plot(rotate_axis_labels=False)
 
+    def generate_control_plot(self):
+        time = self.log.time[0:self.log.current_idx + 1]
+
+        pitch = np.rad2deg(self.log.get_control_input("pitch"))
+        yaw = np.rad2deg(self.log.get_control_input("yaw"))
+        roll = np.rad2deg(self.log.get_control_input("roll"))
+
+        plt.figure()
+        plt.plot(time, pitch, label='pitch (deg)')
+        plt.plot(time, yaw, label='yaw (deg)')
+        plt.plot(time, roll, label='roll (deg)')
+
+        plt.xlabel('Time (s)')
+        plt.ylabel('Control (deg)')
+        plt.title('Control')
+        plt.legend()
+        plt.grid(True)
+        plt.gcf().set_size_inches(6, 4)
+        p.show_plot(rotate_axis_labels=False)
+
+    def generate_angle_of_attack_plot(self):
+        time = self.log.time[0:self.log.current_idx + 1]
+
+        u = self.log.get_state("vx")
+        w = self.log.get_state("vz")
+        alpha = np.rad2deg(np.arctan2(w, u))
+
+        plt.figure()
+        plt.plot(time, alpha, label='alpha (deg)')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Alpha (deg)')
+        plt.title('Angle of Attack')
+        plt.legend()
+        plt.grid(True)
+        plt.gcf().set_size_inches(6, 4)
+        p.show_plot(rotate_axis_labels=False)
+
+    def generate_deflections_plot(self):
+        pass
 

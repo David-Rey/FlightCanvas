@@ -3,15 +3,26 @@ import numpy as np
 
 
 class StarshipROM:
-    def __init__(self, vehicle_dynamics: VehicleDynamics):
-        self.vehicle_dynamics = vehicle_dynamics
-
-
-
-
 
     @staticmethod
     def pitch_ROM(full_state: np.ndarray) -> np.ndarray:
+        u = full_state[3]
+        w = full_state[5]
+
+        q0 = full_state[6]
+        q1 = full_state[7]
+        q2 = full_state[8]
+        q3 = full_state[9]
+
+        pitch = np.arcsin(2 * (q3 * q1 - q2 * q0))
+        alpha = np.arctan2(w, u)
+        q = full_state[11]
+
+        x3 = np.array([alpha, q, pitch])
+        return x3
+
+    @staticmethod
+    def pitch_ROM_old(full_state: np.ndarray) -> np.ndarray:
         """
         Calculates reduced order model
         :param full_state: The current state of the vehicle (position, velocity, quaternion, angular_velocity)

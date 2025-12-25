@@ -10,7 +10,8 @@ from FlightCanvas.Flight.flight import Flight
 from FlightCanvas.analysis.log import Log
 from FlightCanvas.analysis.vehicle_visualizer import VehicleVisualizer
 from FlightCanvas.analysis.anlaysis import Analysis
-from examples.Starship.starship_trimpoints import Trimpoints
+from examples.Starship.starship_trimpoint import Trimpoint
+from FlightCanvas.vehicle.actuator_dynamics import ActuatorDynamics
 
 from typing import Dict, List
 
@@ -69,6 +70,9 @@ class Starship:
 
         # Init vehicle dynamics
         self.vehicle.init_vehicle_dynamics(control_mapping)
+
+        # Init actuator dynamics
+        self.vehicle.actuator_dynamics = ActuatorDynamics([1], [1, 1], self.vehicle.num_components)
 
     def save_buildup(self):
         """
@@ -149,7 +153,7 @@ class Starship:
             translation=[5, 2.9, 0],
             ref_direction=[1, 0.18, 0],
             control_pivot=[1, 0.18, 0],
-            actuator_model=DirectDerivative()
+            actuator_model=DirectDerivative()  # TODO: Replace this
         )
 
     def _create_back_flaps(self) -> List[AeroWing]:
@@ -203,7 +207,7 @@ class Starship:
             }
         }
 
-    # --- Helper methods for geometry creation ---
+    # Helper methods for geometry creation
     @staticmethod
     def _smooth_path(points: np.ndarray, smoothing_factor: float = 0.0, n_points: int = 500) -> np.ndarray:
         """
@@ -249,33 +253,44 @@ class Starship:
         """
 
         state_names = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'q0', 'q1', 'q2', 'q3', 'wx', 'wy', 'wz']
+        control_names = ['pitch', 'yaw', 'roll', 'drag']
         deflection_names = ['b0', 'f1', 'f2', 'f3', 'f4']
         maxSteps = 2000
-        log = Log(state_names, deflection_names, maxSteps)
+        log = Log(state_names, control_names, deflection_names, maxSteps)
 
         dt = 0.01
-        tf = 22
+        tf = 20
         flight = Flight(self.vehicle, tf, dt=dt)
 
-        trim = Trimpoints(self.vehicle.vehicle_dynamics)
+        trim = Trimpoint(self.vehicle.vehicle_dynamics)
+        z_guess = np.array([-60, -12, 12])
+        trim.get_trimpoint(z_guess)
+        trim.init_LQR()
 
+        #trim.plot_pz_with_feedback()
+
+        inital_state = trim.x_star
+        #inital_state = trim.u_star
         #starship_control = StarshipController(sys)
         #starship_control.compute_lqr()
-
-        inital_state, inital_control, _ = trim.find_trimpoint()
-        trim.get_LQR_control()
+        #inital_state, inital_control, _ = trim.get_trimpoint()
+        #trim.get_LQR_control()
 
         inital_state[2] = 1000
+        inital_state[11] = 0.001
         flight.run_sim(inital_state, trim, log)
 
         analysis = Analysis(log)
-        analysis.generate_velocity_plot()
+        analysis.generate_control_plot()
+        analysis.generate_angular_velocity_plot()
+        analysis.generate_euler_angle_plot()
+        analysis.generate_angle_of_attack_plot()
 
-        vv = VehicleVisualizer(self.vehicle, log)
+        #vv = VehicleVisualizer(self.vehicle, log)
+        #vv.init_actors()
+        #vv.add_grid()
+        #vv.animate(cam_distance=50)
 
-        vv.init_actors()
-        vv.add_grid()
-        vv.animate(cam_distance=50)
 
 
 if __name__ == '__main__':

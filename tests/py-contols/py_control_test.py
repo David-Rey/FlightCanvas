@@ -130,7 +130,7 @@ if __name__ == "__main__":
 
     # Continuous double integrator: 1 / s^2
     Ts = 0.5
-    sys_c = FCTransferFunction(num=[1], den=[1, 0, 0])
+    sys_c = FCTransferFunction(num=[1], den=[1, 1])
     sys_d = sys_c.c2d(Ts=Ts, method="zoh")
 
     sim_time = 10.0
@@ -143,11 +143,11 @@ if __name__ == "__main__":
     for k in range(steps):
         output[k] = sys_d.update(u)
 
-    theoretical = 0.5 * time**2
+    #theoretical = 0.5 * time**2
 
     plt.figure(figsize=(10, 6))
     plt.step(time, output, where="post", label="Discrete Simulation")
-    plt.plot(time, theoretical, "r--", label="0.5 t^2 (Continuous)")
+    #plt.plot(time, theoretical, "r--", label="0.5 t^2 (Continuous)")
     plt.xlabel("Time (s)")
     plt.ylabel("Position")
     plt.title(f"Discrete Simulation of 1/s^2 (Ts = {Ts}s)")

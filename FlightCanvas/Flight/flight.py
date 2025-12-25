@@ -17,41 +17,34 @@ class Flight:
         TODO
         """
 
+        self.aero_vehicle.actuator_dynamics.c2d(self.dt)
+
         time = 0.0
         log.initialize_timestep(time)
-        #num_control_inputs = self.aero_vehicle.vehicle_dynamics.num_control_inputs
-        #starship_control = np.deg2rad(np.array([20, 0, 0, 45]))
-        #starship_control = init_control
-        #control_deflections = self.aero_vehicle.vehicle_dynamics.allocation_matrix @ starship_control
         state = init_state
-
-        dynamics_6dof = lambda state, control: self.aero_vehicle.vehicle_dynamics.dynamics(state, control).full().flatten()
-
         control = trim.get_control(state)
 
-        control_deflections = self.aero_vehicle.vehicle_dynamics.allocation_matrix @ control
-
-        states_dot = dynamics_6dof(state, control_deflections)
+        states_dot = self.aero_vehicle.dynamics(state, control)
 
         log.add(time, "states", state)
         log.add(time, "state_dots", states_dot)
-        log.add(time, "control_inputs", control_deflections)
+        log.add(time, "control", control)
+        log.add(time, "deflections", self.aero_vehicle.get_true_deflections())
 
         for i in range(1, self.steps):
             time = i * self.dt
             log.initialize_timestep(time)
 
             control = trim.get_control(state)
-
-            control_deflections = self.aero_vehicle.vehicle_dynamics.allocation_matrix @ control
-            aero_vehicle_dyn = lambda state: dynamics_6dof(state, control_deflections)
+            aero_vehicle_dyn = lambda state: self.aero_vehicle.dynamics(state, control)
 
             state = utils.rk4(aero_vehicle_dyn, state, self.dt)
-            states_dot = dynamics_6dof(state, control_deflections)
+            states_dot = self.aero_vehicle.dynamics(state, control)
 
             log.add(time, "states", state)
             log.add(time, "state_dots", states_dot)
-            log.add(time, "control_inputs", control_deflections)
+            log.add(time, "control", control)
+            log.add(time, "deflections", self.aero_vehicle.get_true_deflections())
 
         log.trim()
 

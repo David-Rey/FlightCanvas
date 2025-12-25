@@ -34,8 +34,10 @@ class AeroVehicle:
         self.mass = 10
         self.moi = self.mass * np.eye(3)
         self.components = components
+        self.num_components = len(components)
 
         self.vehicle_dynamics = None
+        self.actuator_dynamics = None
         self.vehicle_path = f'vehicle_saves/{self.name}'
 
         for i in range(len(self.components)):
@@ -127,3 +129,22 @@ class AeroVehicle:
         """
         for component in self.components:
             component.generate_mesh()
+
+    def dynamics(self, state: np.ndarray, control: np.ndarray):
+        """
+        Wrapper for 6-Degree of freedom dynamics in vehicle dynamics class
+        """
+        if self.vehicle_dynamics.allocation_matrix is None:
+            raise ValueError("Vehicle dynamics is not allocated")
+
+        cmd_deflections = self.vehicle_dynamics.allocation_matrix @ control
+
+        true_deflections = self.actuator_dynamics.update_deflections(cmd_deflections)
+
+        return self.vehicle_dynamics.dynamics(state, true_deflections).full().flatten()
+
+    def get_true_deflections(self):
+        true_deflections = np.zeros(self.num_components)
+        for i in range(self.num_components):
+            true_deflections[i] = self.actuator_dynamics.tfs[i].y_hist[0]
+        return true_deflections

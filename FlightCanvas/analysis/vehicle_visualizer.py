@@ -147,7 +147,7 @@ class VehicleVisualizer:
         :param fps: The frames per second of animation
         """
         x_arr = self.log.states
-        u_arr = self.log.control_inputs
+        u_arr = self.log.deflections
         t_arr = self.log.time
 
         if show_text:
