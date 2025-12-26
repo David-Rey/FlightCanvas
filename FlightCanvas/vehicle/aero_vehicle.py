@@ -5,9 +5,9 @@ from typing import List, Union
 
 import aerosandbox.numpy as np
 
+from FlightCanvas.vehicle.actuator_dynamics import ActuatorDynamics
 from FlightCanvas.vehicle.vehicle_dynamics import VehicleDynamics
 
-# Local application imports
 from FlightCanvas.components.aero_component import AeroComponent
 
 
@@ -53,6 +53,9 @@ class AeroVehicle:
 
         # Update transformation matrices for all components
         self.update_transform()
+
+        # Init Actuator Dynamics
+        self.init_actuator_dynamics()
 
     def update_transform(self):
         """
@@ -130,6 +133,17 @@ class AeroVehicle:
         for component in self.components:
             component.generate_mesh()
 
+    def init_actuator_dynamics(self):
+        """
+        TODO
+        """
+        actuators = []
+        for i in range(self.num_components):
+            com_act = self.components[i].actuator_model
+            actuators.append(com_act)
+
+        self.actuator_dynamics = ActuatorDynamics(actuators)
+
     def dynamics(self, state: np.ndarray, control: np.ndarray):
         """
         Wrapper for 6-Degree of freedom dynamics in vehicle dynamics class
@@ -144,7 +158,7 @@ class AeroVehicle:
         return self.vehicle_dynamics.dynamics(state, true_deflections).full().flatten()
 
     def get_true_deflections(self):
-        true_deflections = np.zeros(self.num_components)
-        for i in range(self.num_components):
-            true_deflections[i] = self.actuator_dynamics.tfs[i].y_hist[0]
-        return true_deflections
+        """
+        TODO
+        """
+        return self.actuator_dynamics.get_true_deflections()

@@ -6,31 +6,40 @@ from scipy.signal import cont2discrete
 
 
 class ActuatorDynamics:
-    def __init__(self, num: Union[np.ndarray, list], den: Union[np.ndarray, list], num_actuators: int, init_state=0):
-        self.tfs = []
-        self.num_actuators = num_actuators
-        for i in range(num_actuators):
-            self.tfs.append(FCTransferFunction(num, den, init_state=init_state))
+    def __init__(self, actuators: list["Actuator"]):
+        self.actuators = actuators
+        self.num_actuators = len(actuators)
 
     def c2d(self, dt: float):
         for i in range(self.num_actuators):
-            self.tfs[i] = self.tfs[i].c2d(dt)
+            if self.actuators[i] is not None:
+                self.actuators[i] = self.actuators[i].c2d(dt)
 
     def update_deflections(self, deflections: Union[np.ndarray, list]) -> np.ndarray:
         true_deflections = np.zeros(self.num_actuators)
         for i in range(self.num_actuators):
-            true_deflections[i] = self.tfs[i].update(deflections[i])
+            if self.actuators[i] is not None:
+                true_deflections[i] = self.actuators[i].update(deflections[i])
+            else:
+                true_deflections[i] = deflections[i]
+        return true_deflections
+
+    def get_true_deflections(self) -> np.ndarray:
+        true_deflections = np.zeros(self.num_actuators)
+        for i in range(self.num_actuators):
+            if self.actuators[i] is not None:
+                true_deflections[i] = self.actuators[i].y_hist[0]
         return true_deflections
 
 
-class FCTransferFunction(TransferFunction):
+class Actuator(TransferFunction):
     """
     Extension of python-starship_control's TransferFunction with:
     - Continuous-to-discrete conversion
     - Explicit time-domain update via a difference equation
     """
 
-    def __init__(self, num: Union[np.ndarray, list], den: Union[np.ndarray, list], init_state=0):
+    def __init__(self, num: Union[np.ndarray, list], den: Union[np.ndarray, list]):
         super().__init__(num, den)
 
         #self.u_hist = np.repeat(init_state, len(self.num[0][0]))
@@ -39,7 +48,7 @@ class FCTransferFunction(TransferFunction):
         self.u_hist = np.zeros(len(self.num[0][0]))
         self.y_hist = np.zeros(len(self.den[0][0]) - 1)
 
-    def c2d(self, Ts: float, method='zoh') -> "FCTransferFunction":
+    def c2d(self, Ts: float, method='zoh') -> "Actuator":
         """
         Discretize the continuous-time transfer function
         """
@@ -47,7 +56,7 @@ class FCTransferFunction(TransferFunction):
         numd, dend, _ = cont2discrete(sys, Ts, method, None)
         numd = numd.flatten()
         dend = dend.flatten()
-        fctf = FCTransferFunction(numd, dend)
+        fctf = Actuator(numd, dend)
         fctf.dt = Ts
         return fctf
 

@@ -124,3 +124,7 @@ class Log:
 
     def get_control_input(self, name: str) -> np.ndarray:
         return self._get_by_name(self.control_names, self.control_inputs, name)
+
+    def get_deflection(self, name: str) -> np.ndarray:
+        return self._get_by_name(self.deflection_names, self.deflections, name)
+

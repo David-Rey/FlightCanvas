@@ -11,7 +11,7 @@ class Analysis:
         self.log = log
         self.num_samples = log.current_idx
 
-    def generate_velocity_plot(self):
+    def generate_velocity_plot(self, include_vz=True):
         time = self.log.time[0:self.log.current_idx + 1]
 
         vx = self.log.get_state("vx")
@@ -21,7 +21,8 @@ class Analysis:
         plt.figure()
         plt.plot(time, vx, label='vx (m/s)')
         plt.plot(time, vy, label='vy (m/s)')
-        plt.plot(time, vz, label='vz (m/s)')
+        if include_vz:
+            plt.plot(time, vz, label='vz (m/s)')
 
         plt.xlabel('Time (s)')
         plt.ylabel('Velocity (deg)')
@@ -120,6 +121,30 @@ class Analysis:
         plt.gcf().set_size_inches(6, 4)
         p.show_plot(rotate_axis_labels=False)
 
-    def generate_deflections_plot(self):
-        pass
+    def generate_true_deflections_plot(self):
+        time = self.log.time[0:self.log.current_idx + 1]
+
+        fl_deflections = np.rad2deg(self.log.get_deflection('f_left'))
+        fr_deflections = np.rad2deg(self.log.get_deflection('f_right'))
+        bl_deflections = np.rad2deg(self.log.get_deflection('b_left'))
+        br_deflections = np.rad2deg(self.log.get_deflection('b_right'))
+
+        plt.figure()
+        plt.plot(time, fl_deflections, label='Front Left Flap (deg)')
+        plt.plot(time, fr_deflections, label='Front Right Flap (deg)')
+        plt.plot(time, bl_deflections, label='Back Left Flap (deg)')
+        plt.plot(time, br_deflections, label='Back Right Flap (deg)')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Deflections (deg)')
+        plt.title('Angle of Attack')
+        plt.legend()
+        plt.grid(True)
+        plt.gcf().set_size_inches(6, 4)
+        p.show_plot(rotate_axis_labels=False)
+
+    #def generate_cmd_deflections_plot(self, allocation_matrix):
+        #time = self.log.time[0:self.log.current_idx + 1]
+
+        #control = self.log.control_inputs
+        #deflections = allocation_matrix @ control
 

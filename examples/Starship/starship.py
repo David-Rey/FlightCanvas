@@ -11,7 +11,7 @@ from FlightCanvas.analysis.log import Log
 from FlightCanvas.analysis.vehicle_visualizer import VehicleVisualizer
 from FlightCanvas.analysis.anlaysis import Analysis
 from examples.Starship.starship_trimpoint import Trimpoint
-from FlightCanvas.vehicle.actuator_dynamics import ActuatorDynamics
+from FlightCanvas.vehicle.actuator_dynamics import Actuator
 
 from typing import Dict, List
 
@@ -70,9 +70,6 @@ class Starship:
 
         # Init vehicle dynamics
         self.vehicle.init_vehicle_dynamics(control_mapping)
-
-        # Init actuator dynamics
-        self.vehicle.actuator_dynamics = ActuatorDynamics([1], [1, 1], self.vehicle.num_components)
 
     def save_buildup(self):
         """
@@ -153,7 +150,7 @@ class Starship:
             translation=[5, 2.9, 0],
             ref_direction=[1, 0.18, 0],
             control_pivot=[1, 0.18, 0],
-            actuator_model=DirectDerivative()  # TODO: Replace this
+            actuator_model=Actuator([1], [1, 1])
         )
 
     def _create_back_flaps(self) -> List[AeroWing]:
@@ -171,7 +168,7 @@ class Starship:
             translation=[35, 4.5, 0],
             ref_direction=[1, 0, 0],
             control_pivot=[1, 0, 0],
-            actuator_model=DirectDerivative()
+            actuator_model=Actuator([1], [1, 1])
         )
 
     @staticmethod
@@ -254,7 +251,7 @@ class Starship:
 
         state_names = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'q0', 'q1', 'q2', 'q3', 'wx', 'wy', 'wz']
         control_names = ['pitch', 'yaw', 'roll', 'drag']
-        deflection_names = ['b0', 'f1', 'f2', 'f3', 'f4']
+        deflection_names = ['b', 'f_left', 'f_right', 'b_left', 'b_right']
         maxSteps = 2000
         log = Log(state_names, control_names, deflection_names, maxSteps)
 
@@ -263,7 +260,7 @@ class Starship:
         flight = Flight(self.vehicle, tf, dt=dt)
 
         trim = Trimpoint(self.vehicle.vehicle_dynamics)
-        z_guess = np.array([-60, -12, 12])
+        z_guess = np.array([-60, -12, np.deg2rad(12)])
         trim.get_trimpoint(z_guess)
         trim.init_LQR()
 
@@ -282,9 +279,10 @@ class Starship:
 
         analysis = Analysis(log)
         analysis.generate_control_plot()
-        analysis.generate_angular_velocity_plot()
+        analysis.generate_velocity_plot(include_vz=False)
         analysis.generate_euler_angle_plot()
         analysis.generate_angle_of_attack_plot()
+        #analysis.generate_true_deflections_plot()
 
         #vv = VehicleVisualizer(self.vehicle, log)
         #vv.init_actors()

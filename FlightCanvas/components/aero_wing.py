@@ -6,7 +6,7 @@ import aerosandbox.numpy as np
 
 from .aero_component import AeroComponent
 from FlightCanvas import utils
-from FlightCanvas.OLD.actuators.actuators import ActuatorModel
+from FlightCanvas.vehicle.actuator_dynamics import Actuator
 
 
 class AeroWing(AeroComponent):
@@ -23,7 +23,7 @@ class AeroWing(AeroComponent):
         control_pivot=None,
         is_prime: bool = True,
         symmetric_comp: Optional['AeroComponent'] = None,
-        actuator_model: Optional[ActuatorModel] = None,
+        actuator_model: Optional[Actuator] = None,
         symmetry_type=None,
         **kwargs
     ):
@@ -73,7 +73,7 @@ def create_planar_wing_pair(
     translation: Union[np.ndarray, List[float]] = (0, 0, 0),
     ref_direction: Union[np.ndarray, List[float]] = (1, 0, 0),
     control_pivot=None,
-    actuator_model: Optional[ActuatorModel] = None,
+    actuator_model: Optional[Actuator] = None,
     **kwargs
 ) -> List[AeroWing]:
     """
@@ -123,7 +123,6 @@ def create_planar_wing_pair(
         symmetry_type='xz-plane',
         **kwargs
     )
-    #left_aero_wing.symmetry_type = 'xz-plane'
 
     # Apply the overall translation to both wings and return them as a list
     right_aero_wing.translate(translation)
@@ -141,7 +140,7 @@ def create_axial_wing_pair(
     translation: Union[np.ndarray, List[float]] = (0, 0, 0),
     ref_direction: Union[np.ndarray, List[float]] = (1, 0, 0),
     control_pivot: Union[np.ndarray, List[float]] = None,
-    actuator_model: Optional[ActuatorModel] = None,
+    actuator_model: Optional[Actuator] = None,
     num_wings: int = 2,
     **kwargs
 ) -> List[AeroWing]:

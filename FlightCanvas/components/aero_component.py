@@ -8,7 +8,7 @@ import numpy as np
 import pyvista as pv
 
 from FlightCanvas import utils
-from FlightCanvas.OLD.actuators.actuators import ActuatorModel
+from FlightCanvas.vehicle.actuator_dynamics import Actuator
 from FlightCanvas.buildup.buildup_manager import BuildupManager
 
 
@@ -25,7 +25,7 @@ class AeroComponent(ABC):
             control_pivot=None,
             is_prime=True,
             symmetric_comp: Optional['AeroComponent'] = None,
-            actuator_model: Optional[ActuatorModel] = None
+            actuator_model: Optional[Actuator] = None
     ):
         """
         Initializes an AeroComponent object
@@ -86,7 +86,7 @@ class AeroComponent(ABC):
         """
         self.parent = parent
 
-    def set_actuator(self, actuator: ActuatorModel):
+    def set_actuator(self, actuator: Actuator):
         """
         TODO
         """
