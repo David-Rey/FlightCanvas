@@ -612,3 +612,52 @@ def rk4(f: Callable[[np.ndarray], np.ndarray], state: np.ndarray, dt: float) -> 
     next_state = state + dt * ((1 / 6) * k1 + (1 / 3) * k2 + (1 / 3) * k3 + (1 / 6) * k4)
 
     return next_state
+
+
+def quat_inverse(q: Union[np.ndarray, List[float], ca.MX]) -> Union[np.ndarray, ca.MX]:
+    """
+    Computes the inverse of a unit quaternion (the conjugate).
+    Supports both NumPy and CasADi types.
+
+    Convention: [w, x, y, z] (scalar first)
+    """
+    is_casadi = isinstance(q, (ca.SX, ca.MX))
+
+    if is_casadi:
+        # Keep scalar positive, negate the vector part
+        return ca.vertcat(q[0], -q[1], -q[2], -q[3])
+    else:
+        q_np = np.array(q)
+        return np.array([q_np[0], -q_np[1], -q_np[2], -q_np[3]])
+
+
+def quat_multiply(
+        q1: Union[np.ndarray, List[float], ca.MX],
+        q2: Union[np.ndarray, List[float], ca.MX]
+) -> Union[np.ndarray, ca.MX]:
+    """
+    Computes the Hamilton product of two quaternions q1 * q2.
+    Supports both NumPy and CasADi types.
+
+    Convention: [w, x, y, z] (scalar first)
+    """
+    # Detect if either input is CasADi to return the correct type
+    is_casadi = isinstance(q1, (ca.SX, ca.MX)) or isinstance(q2, (ca.SX, ca.MX))
+
+    # Extract components
+    w1, x1, y1, z1 = q1[0], q1[1], q1[2], q1[3]
+    w2, x2, y2, z2 = q2[0], q2[1], q2[2], q2[3]
+
+    # Hamilton Product Formula
+    # Scalar part
+    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+
+    # Vector part
+    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+    y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
+    z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
+
+    if is_casadi:
+        return ca.vertcat(w, x, y, z)
+    else:
+        return np.array([w, x, y, z])

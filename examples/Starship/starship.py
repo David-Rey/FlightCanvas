@@ -279,9 +279,11 @@ class Starship:
 
         analysis = Analysis(log)
         analysis.generate_control_plot()
-        analysis.generate_velocity_plot(include_vz=False)
+        analysis.generate_velocity_plot(include_vz=True)
+        analysis.generate_position_plot()
         analysis.generate_euler_angle_plot()
-        analysis.generate_angle_of_attack_plot()
+        #analysis.generate_quat_norm_plot()
+        #analysis.generate_angle_of_attack_plot()
         #analysis.generate_true_deflections_plot()
 
         #vv = VehicleVisualizer(self.vehicle, log)

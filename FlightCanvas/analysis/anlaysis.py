@@ -26,11 +26,52 @@ class Analysis:
 
         plt.xlabel('Time (s)')
         plt.ylabel('Velocity (deg)')
-        plt.title('Velocity Components (Inertial)')
+        plt.title('Velocity Components (Body)')
         plt.legend()
         plt.grid(True)
         plt.gcf().set_size_inches(6, 4)
         p.show_plot(rotate_axis_labels=False)
+
+    def generate_position_plot(self):
+        time = self.log.time[0:self.log.current_idx + 1]
+
+        px = self.log.get_state("x")
+        py = self.log.get_state("y")
+        pz = self.log.get_state("z")
+
+        plt.figure()
+        plt.plot(time, px, label='vx (m)')
+        plt.plot(time, py, label='vy (m)')
+        plt.plot(time, pz, label='vz (m)')
+
+        plt.xlabel('Time (s)')
+        plt.ylabel('Position (m)')
+        plt.title('Position Components (Inertial)')
+        plt.legend()
+        plt.grid(True)
+        plt.gcf().set_size_inches(6, 4)
+        p.show_plot(rotate_axis_labels=False)
+
+    def generate_quat_norm_plot(self):
+        time = self.log.time[0:self.log.current_idx + 1]
+
+        q0 = self.log.get_state("q0")
+        q1 = self.log.get_state("q1")
+        q2 = self.log.get_state("q2")
+        q3 = self.log.get_state("q3")
+
+        norm = np.sqrt(q0 ** 2 + q1 ** 2 + q2 ** 2 + q3 ** 2)
+        plt.figure()
+        plt.plot(time, norm, label='q_norm')
+
+        plt.xlabel('Time (s)')
+        plt.ylabel('q_norm')
+        plt.title('Quaterion Norm')
+        plt.legend()
+        plt.grid(True)
+        plt.gcf().set_size_inches(6, 4)
+        p.show_plot(rotate_axis_labels=False)
+
 
     def generate_euler_angle_plot(self):
         time = self.log.time[0:self.log.current_idx+1]
@@ -92,9 +133,9 @@ class Analysis:
         roll = np.rad2deg(self.log.get_control_input("roll"))
 
         plt.figure()
-        plt.plot(time, pitch, label='pitch (deg)')
+        #plt.plot(time, pitch, label='pitch (deg)')
         plt.plot(time, yaw, label='yaw (deg)')
-        plt.plot(time, roll, label='roll (deg)')
+        #plt.plot(time, roll, label='roll (deg)')
 
         plt.xlabel('Time (s)')
         plt.ylabel('Control (deg)')
