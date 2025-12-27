@@ -87,7 +87,7 @@ class Starship:
         """
         Sets the mass and moment of inertia for the vehicle
         """
-        self.vehicle.set_mass(105000)
+        self.vehicle.set_mass(135000)
         # MOI for a cylinder
         radius = self.diameter / 2
         I_s = (1 / 2) * radius ** 2  # Inertia about the spin axis (x)
@@ -150,7 +150,7 @@ class Starship:
             translation=[5, 2.9, 0],
             ref_direction=[1, 0.18, 0],
             control_pivot=[1, 0.18, 0],
-            actuator_model=Actuator([1], [1, 1])
+            actuator_model=Actuator([1], [0.1, 1])
         )
 
     def _create_back_flaps(self) -> List[AeroWing]:
@@ -168,7 +168,7 @@ class Starship:
             translation=[35, 4.5, 0],
             ref_direction=[1, 0, 0],
             control_pivot=[1, 0, 0],
-            actuator_model=Actuator([1], [1, 1])
+            actuator_model=Actuator([1], [0.1, 1])
         )
 
     @staticmethod
@@ -248,7 +248,6 @@ class Starship:
         """
         Runs static simulation
         """
-
         state_names = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'q0', 'q1', 'q2', 'q3', 'wx', 'wy', 'wz']
         control_names = ['pitch', 'yaw', 'roll', 'drag']
         deflection_names = ['b', 'f_left', 'f_right', 'b_left', 'b_right']
@@ -256,13 +255,14 @@ class Starship:
         log = Log(state_names, control_names, deflection_names, maxSteps)
 
         dt = 0.01
-        tf = 20
+        tf = 15
         flight = Flight(self.vehicle, tf, dt=dt)
 
         trim = Trimpoint(self.vehicle.vehicle_dynamics)
-        z_guess = np.array([-60, -12, np.deg2rad(12)])
+        z_guess = np.array([-60, 0, np.deg2rad(12)])
         trim.get_trimpoint(z_guess)
         trim.init_LQR()
+        #trim.yaw_control_analysis()
 
         #trim.plot_pz_with_feedback()
 
@@ -279,17 +279,19 @@ class Starship:
 
         analysis = Analysis(log)
         analysis.generate_control_plot()
-        analysis.generate_velocity_plot(include_vz=True)
-        analysis.generate_position_plot()
+        analysis.generate_velocity_plot(include_vz=False)
+        #analysis.generate_position_plot()
         analysis.generate_euler_angle_plot()
+        #analysis.generate_angular_velocity_plot()
         #analysis.generate_quat_norm_plot()
         #analysis.generate_angle_of_attack_plot()
         #analysis.generate_true_deflections_plot()
 
-        #vv = VehicleVisualizer(self.vehicle, log)
-        #vv.init_actors()
-        #vv.add_grid()
-        #vv.animate(cam_distance=50)
+        vv = VehicleVisualizer(self.vehicle, log)
+        vv.init_actors()
+        vv.add_grid()
+        vv.generate_square_traj()
+        vv.animate(cam_distance=140, zoom=1.5)
 
 
 

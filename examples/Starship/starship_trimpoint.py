@@ -5,6 +5,7 @@ import numdifftools as nd
 from scipy.optimize import minimize
 import control as ct
 from matplotlib import pyplot as plt
+from FlightCanvas.control.controller import Controller
 
 
 class Trimpoint:
@@ -23,13 +24,9 @@ class Trimpoint:
     B_pitch: np.ndarray
     K_pitch: np.ndarray
 
-    A_yaw: np.ndarray
-    B_yaw: np.ndarray
-    K_yaw: np.ndarray
-
-    A_roll: np.ndarray
-    B_roll: np.ndarray
-    K_roll: np.ndarray
+    A_lateral: np.ndarray
+    B_lateral: np.ndarray
+    K_lateral: np.ndarray
 
     x_dot_full: np.ndarray
     x_dot_pitch: np.ndarray
@@ -40,9 +37,8 @@ class Trimpoint:
     nominal_omega = np.array([0, 0, 0])
 
     # Pitch params
-    default_pitch = -0.6
-    default_drag = np.deg2rad(40)
-
+    default_pitch = 0.6
+    default_drag = np.deg2rad(35)
 
     def __init__(self, vehicle_dynamics: VehicleDynamics):
         self.vehicle_dynamics = vehicle_dynamics
@@ -60,7 +56,6 @@ class Trimpoint:
         quat_pitch = utils.euler_to_quat((0, self.default_pitch, 0))
         state[6:10] = quat_pitch
         return state
-
 
     def nominal_control(self):
         return np.array([self.z_star[2], 0, 0, self.default_drag])
@@ -97,7 +92,7 @@ class Trimpoint:
     def get_trimpoint(self, z_guess: np.ndarray):
         self.perform_trim_optimization(z_guess)
         self.find_pitch_ROM()
-        self.find_yaw_ROM()
+        self.find_lateral_ROM()
 
     def perform_trim_optimization(self, z_guess: np.ndarray):
 
@@ -142,32 +137,30 @@ class Trimpoint:
         self.A_pitch = Jg_pitch @ A @ T_pitch
         self.B_pitch = Jg_pitch @ B
 
-    def find_yaw_ROM(self):
-        yaw_jac = nd.Jacobian(self.yaw_ROM)
-        Jg_yaw = yaw_jac(self.x_star)
+    def find_lateral_ROM(self):
+        lateral_jac = nd.Jacobian(self.lateral_ROM_quaternion, step=1e-7, method='central')
+        Jg = lateral_jac(self.x_star)
         nominal_control = self.nominal_control()
         nominal_deflections = self.control2deflections(nominal_control[0], nominal_control[1], nominal_control[2])
         nominal_deflections[3] = 0
 
         fx = lambda x: self.vehicle_dynamics.dynamics(x, self.u_star)
+        fu = lambda control: self.vehicle_dynamics.dynamics(self.x_star, nominal_deflections + self.control2deflections(0, control[0], control[1]))
 
-        fu = lambda yaw: self.vehicle_dynamics.dynamics(self.x_star, nominal_deflections + self.control2deflections(0, yaw[0], 0))
-
-        A_jac_fun = nd.Jacobian(fx)
-        B_jac_fun = nd.Jacobian(fu)
+        A_jac_fun = nd.Jacobian(fx, step=1e-4, method='central')
+        B_jac_fun = nd.Jacobian(fu, step=1e-4, method='central')
 
         A = A_jac_fun(self.x_star).squeeze()
-        B = B_jac_fun(0).reshape(-1, 1)
+        B = B_jac_fun([0, 0]).squeeze()
 
-        T_yaw = np.linalg.pinv(Jg_yaw)
+        T_yaw = np.linalg.pinv(Jg)
 
-        self.A_yaw = Jg_yaw @ A @ T_yaw
-        self.B_yaw = Jg_yaw @ B
-        print(1)
+        self.A_lateral = Jg @ A @ T_yaw
+        self.B_lateral = Jg @ B
 
     def init_LQR(self):
         self.init_LQR_pitch()
-        self.init_LQR_yaw()
+        self.init_LQR_lateral()
 
     def init_LQR_pitch(self):
         q_weights = [0.001, 0, 0, 0]  # [u w pitch_rate pitch]
@@ -179,50 +172,73 @@ class Trimpoint:
         # Compute the LQR gain matrix K
         self.K_pitch, S, E = ct.lqr(self.A_pitch, self.B_pitch, Q, R)
 
-    def init_LQR_yaw(self):
-        q_weights = [1, 0.01]  # [yaw_rate yaw]
-        r_weight = 1
+    def init_LQR_lateral(self):
+        q_weights = [0, 0.01, 0.5, 0.01, 1]  #
+        r_weight = [1, 1]
 
         Q = np.diag(q_weights)
-        R = np.array([[r_weight]])
+        R = np.diag(r_weight)
 
         # Compute the LQR gain matrix K
-        self.K_yaw, S, E = ct.lqr(self.A_yaw, self.B_yaw, Q, R)
+        self.K_lateral, S, E = ct.lqr(self.A_lateral, self.B_lateral, Q, R)
 
     def get_control(self, state: np.ndarray) -> np.ndarray:
         pitch_rom = self.pitch_ROM(state)
-        yaw_rom = self.yaw_ROM(state)
-        roll_rom = self.roll_ROM(state)
+        lateral_rom = self.lateral_ROM_quaternion(state)
 
         # Pitch
-        pitch_ref = np.array([-5, 0, 0, 0])  # [vx, vz, pitch_rate, pitch]
+        pitch_ref = np.array([16, 0, 0, 0])  # [vx, vz, pitch_rate, pitch]
+        #pitch_ref = -np.deg2rad(3)
         pitch_error = pitch_ref - pitch_rom
+        #rel_pitch_control = self.pitch_controller.update(pitch_error)
         rel_pitch_control = self.K_pitch @ pitch_error
         pitch_control = np.array([rel_pitch_control[0], 0, 0, 0])
 
-        # Yaw
-        yaw_ref = np.deg2rad(np.array([0, 1]))
-        yaw_error = yaw_ref - yaw_rom
-        rel_yaw_control = self.K_yaw @ yaw_error
-        yaw_control = np.array([0, rel_yaw_control[0], 0, 0])
+        # Roll-Yaw
+        lateral_rom[0] = 0
+        lateral_ref = np.array([0, 0, 0, 0, np.deg2rad(0)])
+        lateral_error = lateral_ref - lateral_rom
+        #lateral_error[3] = self.wrap_to_pi(lateral_error[3])
+        #lateral_error[4] = self.wrap_to_pi(lateral_error[4])
+        rel_lateral_control = self.K_lateral @ lateral_error
+        rel_lateral_control[0] = np.clip(rel_lateral_control[0], np.deg2rad(-2), np.deg2rad(2))
+        rel_lateral_control[1] = np.clip(rel_lateral_control[1], np.deg2rad(-2), np.deg2rad(2))
+        lateral_control = np.array([0, rel_lateral_control[0], rel_lateral_control[1], 0])
 
         nominal_control = self.nominal_control()
-        control = nominal_control + pitch_control + yaw_control
+        control = nominal_control + pitch_control + lateral_control
         return control
 
-    def plot_pz_with_feedback(self):
+    def pitch_control_analysis(self):
         # 1. Define the Open-Loop System (G)
-        C = np.array([[0, 0, 1]])  # Note: ensure C is 2D for ss
+        C = np.array([[1, 0, 0, 0]])  # Note: ensure C is 2D for ss
         D = np.array([[0]])
-        sys_open = ct.ss(self.A_pitch[:3, :3], self.B_pitch[:3], C, D)
+        sys_open = ct.ss(self.A_pitch, self.B_pitch, C, D)
 
-        # 2. Define the Feedback Gain (K)
-        # You can start with K=1.0 and increase it if the system remains unstable.
-        K = 20
+        Ku, Tu = self.find_ultimate_params(sys_open)
 
-        # 3. Create the Closed-Loop System (T)
-        # T = G / (1 + G*K)
-        sys_closed = ct.feedback(sys_open, K)
+        #Kp = 0.6 * Ku
+        #Ti = 0.5 * Tu
+        #Td = 0.125 * Tu
+
+        # Convert to standard form gains
+        #Ki = Kp / Ti
+        #Kd = Kp * Td
+
+
+        #print(f"Ultimate Gain (Ku): {Ku:.2f}")
+        #print(f"Ultimate Period (Tu): {Tu:.2f}")
+        #print(f"Calculated PID: Kp={Kp:.2f}, Ki={Ki:.2f}, Kd={Kd:.2f}")
+
+        Kp = 0.05
+        Ki = 0.0
+        Kd = 0.0
+
+        controller = ct.TransferFunction([Kd, Kp, Ki], [1, 0])
+        sys_closed = ct.feedback(controller * sys_open, 1)
+
+        tau = 1
+        #self.pitch_controller = Controller([Kp*tau + Kd,   Kp + Ki*tau,   Ki], [tau, 1, 0])
 
         # 4. Extract Poles and Zeros for Closed-Loop
         p_cl = ct.poles(sys_closed)
@@ -235,21 +251,25 @@ class Trimpoint:
         plt.figure(figsize=(10, 5))
 
         # Open Loop Map
+        x_bounds = [-1.5, 1.5]
+        y_bounds = [-1.5, 1.5]
         plt.subplot(1, 2, 1)
         ct.pzmap(sys_open, title="Open-Loop Pole/Zero")
-        plt.xlim([-1, 1])
-        plt.ylim([-1, 1])
+        plt.xlim(x_bounds)
+        plt.ylim(y_bounds)
         plt.grid(True)
 
         # Closed Loop Map
         plt.subplot(1, 2, 2)
-        ct.pzmap(sys_closed, title=f"Closed-Loop Pole/Zero (K={K})")
-        plt.xlim([-1, 1])
-        plt.ylim([-1, 1])
+        ct.pzmap(sys_closed, title=f"Closed-Loop Pole/Zero")
+        plt.xlim(x_bounds)
+        plt.ylim(y_bounds)
         plt.grid(True)
 
         plt.tight_layout()
         plt.show()
+
+
 
     @staticmethod
     def roll_ROM(full_state: np.ndarray) -> np.ndarray:
@@ -268,18 +288,48 @@ class Trimpoint:
         return rom
 
     @staticmethod
-    def yaw_ROM(full_state: np.ndarray) -> np.ndarray:
+    def lateral_ROM(full_state: np.ndarray) -> np.ndarray:
+        v = full_state[4]
+
         q0 = full_state[6]
         q1 = full_state[7]
         q2 = full_state[8]
         q3 = full_state[9]
 
-        yaw_rate = full_state[12]
+        p = full_state[10]
+        r = full_state[12]
         yaw = np.arctan2(2 * (q3 * q2 + q0 * q1), 1 - 2 * (q1 ** 2 + q2 ** 2))
+        roll = np.arctan2(2 * (q3 * q0 + q1 * q2), 1 - 2 * (q0 ** 2 + q1 ** 2))
 
-        rom = np.array([yaw_rate, yaw])
+        rom = np.array([v, p, r, roll, yaw])
         return rom
 
+    def lateral_ROM_quaternion(self, full_state: np.ndarray) -> np.ndarray:
+        """
+        Returns [v, p, r, qe_x, qe_z]
+        where qe represents the deviation from the trim orientation.
+        """
+        v = full_state[4]  # Lateral velocity
+        p = full_state[10]  # Roll rate
+        r = full_state[12]  # Yaw rate
+
+        # Current orientation quaternion
+        q_curr = full_state[6:10]
+
+        # Orientation at trim (pre-calculated during perform_trim_optimization)
+        q_star = self.x_star[6:10]
+
+        # Calculate Error Quaternion: q_err = inv(q_star) * q_curr
+        # This represents the "deviation" from trim
+        q_star_inv = utils.quat_inverse(q_star)
+        q_err = utils.quat_multiply(q_star_inv, q_curr)
+
+        # We use the vector components (x, z) as proxies for Roll and Yaw error.
+        # This is linear and has no wrapping issues at the trim point.
+        qe_roll = q_err[1]
+        qe_yaw = q_err[3]
+
+        return np.array([v, p, r, qe_roll, qe_yaw])
 
     @staticmethod
     def pitch_vel_ROM(full_state: np.ndarray) -> np.ndarray:
@@ -334,3 +384,80 @@ class Trimpoint:
         yaw_error_rad = 2 * np.sign(w_err) * z_err
 
         return yaw_error_rad
+
+    @staticmethod
+    def find_ultimate_params(sys):
+        # Use margin() to find where phase is -180 degrees
+        # gm is the gain margin, which is the gain needed to reach instability
+        gm, pm, wg, wp = ct.margin(sys)
+
+        ku = gm  # Ultimate Gain
+        wu = wg  # Ultimate Frequency (rad/s)
+        tu = (2 * np.pi) / wu  # Ultimate Period
+        return ku, tu
+
+    @staticmethod
+    def wrap_to_pi(angle):
+        """
+        Wraps an angle (radians) to the range [-pi, pi].
+        """
+        return (angle + np.pi) % (2 * np.pi) - np.pi
+
+    '''
+    def yaw_control_analysis(self):
+        C = np.array([[0, 0, 1]])  # Note: ensure C is 2D for ss
+        D = np.array([[0]])
+        sys_open = ct.ss(self.A_yaw, self.B_yaw, C, D)
+
+        Ku, Tu = self.find_ultimate_params(sys_open)
+        Ku = np.minimum(Ku, 10)
+
+        Kp = 0.6 * Ku
+        Ti = 0.5 * Tu
+        Td = 0.125 * Tu
+
+        # Convert to standard form gains
+        Ki = Kp / Ti
+        Kd = Kp * Td
+
+        print(f"Ultimate Gain (Ku): {Ku:.2f}")
+        print(f"Ultimate Period (Tu): {Tu:.2f}")
+        print(f"Calculated PID: Kp={Kp:.2f}, Ki={Ki:.2f}, Kd={Kd:.2f}")
+
+        #Kp = 2
+        #Kd = 0.5
+        #Ki = 0.5
+
+        tau = 0.01
+        controller = ct.TransferFunction([Kp*tau + Kd,   Kp + Ki*tau,   Ki], [tau, 1, 0])
+        sys_closed = ct.feedback(controller * sys_open, 1)
+
+        p_cl = ct.poles(sys_closed)
+        z_cl = ct.zeros(sys_closed)
+
+        print(f"Closed-Loop Poles: {p_cl}")
+        print(f"Closed-Loop Zeros: {z_cl}")
+
+        # 5. Plotting
+        plt.figure(figsize=(10, 5))
+
+        # Open Loop Map
+        x_bounds = [-1.5, 1.5]
+        y_bounds = [-0.5, 0.5]
+        plt.subplot(1, 2, 1)
+        ct.pzmap(sys_open, title="Open-Loop Pole/Zero")
+        plt.xlim(x_bounds)
+        plt.ylim(y_bounds)
+        plt.grid(True)
+
+        # Closed Loop Map
+        plt.subplot(1, 2, 2)
+        ct.pzmap(sys_closed, title=f"Closed-Loop Pole/Zero")
+        plt.xlim(x_bounds)
+        plt.ylim(y_bounds)
+        plt.grid(True)
+
+        #plt.tight_layout()
+        plt.show()
+    '''
+

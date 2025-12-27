@@ -138,7 +138,30 @@ class VehicleVisualizer:
         # add grid to animation
         self.pl.add_mesh(grid, color="white", show_edges=True, edge_color="black")
 
-    def animate(self, debug=False, show_text=True, cam_distance=5, fps=60):
+    def generate_square_traj(self):
+        x_arr = self.log.states
+        u_arr = self.log.deflections
+        t_arr = self.log.time
+
+        tf = t_arr[-1]
+        hoops_per_sec = 3
+
+        t_hoops = np.arange(0, tf, hoops_per_sec)
+
+        for t in t_hoops:
+            state, _ = utils.interp_state(t_arr, x_arr, u_arr, t)
+            state[0] = -state[0]
+
+            quat = state[6:10]
+            C_B_I = utils.dir_cosine_np(quat)
+            pos = state[:3] + (C_B_I @ self.vehicle.xyz_ref)
+
+            normal = C_B_I @ np.array([0, 0 ,1])
+
+            square = self.create_square(pos, normal, 200, 200)
+            self.pl.add_mesh(square, color='red', line_width=3)
+
+    def animate(self, debug=False, show_text=True, cam_distance=5, zoom=1, fps=60):
         """
         Animates the aerodynamic visuals for all FlightCanvas
         :param debug: If true, draws debug visuals
@@ -166,6 +189,7 @@ class VehicleVisualizer:
 
         # start movie
         self.pl.open_movie(video_filename, framerate=fps, quality=9)
+        self.pl.camera.zoom(zoom)
 
         for i in range(num_frames):
             sim_time = dt * i
@@ -189,8 +213,9 @@ class VehicleVisualizer:
             self.pl.camera.focal_point = pos
 
             # set camera location
-            cam_offset = cam_distance * np.array([-1, 1, 1])
+            cam_offset = cam_distance * np.array([-1, 1, 0.6])
             self.pl.camera.position = pos + cam_offset
+
 
             # render and write the frame to the .mp4
             self.pl.render()
@@ -205,3 +230,68 @@ class VehicleVisualizer:
         """
         self.pl.add_axes_at_origin(labels_off=True)
         self.pl.show(**kwargs)
+
+
+    @staticmethod
+    def create_square(position: np.ndarray, normal: np.ndarray, width: float, height: float) -> pv.PolyData:
+        """
+        Create a square (plane) in 3D space at a given position with specified normal vector.
+        :param position: 3D coordinates [x, y, z] for the center of the square
+        :param normal: Normal vector [nx, ny, nz] defining the orientation of the square
+        :param width: Width of the square
+        :param height: Height of the square
+        :return: yVista mesh representing the square
+        """
+        # Convert inputs to numpy arrays
+        position = np.array(position, dtype=float)
+        normal = np.array(normal, dtype=float)
+
+        # Normalize the normal vector
+        normal = normal / np.linalg.norm(normal)
+
+        # Create two orthogonal vectors in the plane of the square
+        # Find a vector that's not parallel to the normal
+        if abs(normal[0]) < 0.9:
+            temp = np.array([1.0, 0.0, 0.0])
+        else:
+            temp = np.array([0.0, 1.0, 0.0])
+
+        # Create first tangent vector (cross product with temp vector)
+        tangent1 = np.cross(normal, temp)
+        tangent1 = tangent1 / np.linalg.norm(tangent1)
+
+        # Create second tangent vector (cross product of normal and first tangent)
+        tangent2 = np.cross(normal, tangent1)
+        tangent2 = tangent2 / np.linalg.norm(tangent2)
+
+        # Define the four corners of the square relative to center
+        half_width = width / 2.0
+        half_height = height / 2.0
+
+        corners = np.array([
+            [-half_width, -half_height],
+            [half_width, -half_height],
+            [half_width, half_height],
+            [-half_width, half_height]
+        ])
+
+        # Transform corners to 3D space using the tangent vectors
+        vertices = []
+        for corner in corners:
+            vertex = position + corner[0] * tangent1 + corner[1] * tangent2
+            vertices.append(vertex)
+
+        vertices = np.array(vertices)
+
+        # Create edges (lines forming the square outline)
+        edges = np.hstack([
+            [2, 0, 1],  # Edge from vertex 0 to 1
+            [2, 1, 2],  # Edge from vertex 1 to 2
+            [2, 2, 3],  # Edge from vertex 2 to 3
+            [2, 3, 0]  # Edge from vertex 3 to 0
+        ])
+
+        # Create the mesh with lines
+        square_mesh = pv.PolyData(vertices, lines=edges)
+
+        return square_mesh

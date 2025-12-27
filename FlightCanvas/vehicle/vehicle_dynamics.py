@@ -118,11 +118,6 @@ class VehicleDynamics:
         # The Coriolis Term
         coriolis_accel = cross_func(omega_B, v_body)
 
-        # force in inertial frame
-        #F_I = (C_I_B @ F_B) + self.mass * g
-
-        #F_B =
-
         # calculate inertial acceleration
         v_dot = (F_B / self.mass) + g_body - coriolis_accel
 

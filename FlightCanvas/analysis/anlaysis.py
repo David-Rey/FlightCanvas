@@ -133,9 +133,9 @@ class Analysis:
         roll = np.rad2deg(self.log.get_control_input("roll"))
 
         plt.figure()
-        #plt.plot(time, pitch, label='pitch (deg)')
+        plt.plot(time, pitch, label='pitch (deg)')
         plt.plot(time, yaw, label='yaw (deg)')
-        #plt.plot(time, roll, label='roll (deg)')
+        plt.plot(time, roll, label='roll (deg)')
 
         plt.xlabel('Time (s)')
         plt.ylabel('Control (deg)')
