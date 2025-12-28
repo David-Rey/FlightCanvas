@@ -105,10 +105,28 @@ class Starship:
         F_b_list = list(F_b_tuple)
 
         # Access the moment value and update it within the new list
-        My = F_b_list[1] * 0.50
+        F_b_list[1] = F_b_list[1] * 0.50
+        #F_b_list[0] = F_b_list[0] * 0
+        #F_b_list[2] = F_b_list[2] * 0
 
-        # Perform the item assignment on the list
-        F_b_list[1] = My
+
+        for i in [1, 3]:
+        #for i in []:
+            F_b_temp = list(self.vehicle.components[i].buildup_manager.asb_data_static["F_b"])
+            M_b_temp = list(self.vehicle.components[i].buildup_manager.asb_data_static["M_b"])
+            F_b_temp[0] = F_b_temp[0] * 0
+            F_b_temp[1] = F_b_temp[1] * 0
+            M_b_temp[0] = M_b_temp[0] * 0
+            M_b_temp[2] = M_b_temp[2] * 0
+            self.vehicle.components[i].buildup_manager.asb_data_static["F_b"] = F_b_temp
+            self.vehicle.components[i].buildup_manager.asb_data_static["M_b"] = M_b_temp
+
+
+
+        #F_b_temp = list(self.vehicle.components[2].buildup_manager.asb_data_static["F_b"])
+        #F_b_temp[0] = F_b_temp[0] * 0
+        #F_b_temp[1] = F_b_temp[1] * 0
+        #self.vehicle.components[1].buildup_manager.asb_data_static["F_b"] = F_b_temp
 
         # Reassign the updated list back to the dictionary
         self.vehicle.components[0].buildup_manager.asb_data_static["M_b"] = F_b_list
@@ -255,7 +273,7 @@ class Starship:
         log = Log(state_names, control_names, deflection_names, maxSteps)
 
         dt = 0.01
-        tf = 15
+        tf = 12
         flight = Flight(self.vehicle, tf, dt=dt)
 
         trim = Trimpoint(self.vehicle.vehicle_dynamics)
@@ -273,30 +291,33 @@ class Starship:
         #inital_state, inital_control, _ = trim.get_trimpoint()
         #trim.get_LQR_control()
 
-        inital_state[2] = 1000
+        inital_state[2] = 800
         inital_state[11] = 0.001
+
+        trim.draw_wrench_space()
         flight.run_sim(inital_state, trim, log)
 
         analysis = Analysis(log)
-        analysis.generate_control_plot()
-        analysis.generate_velocity_plot(include_vz=False)
+        #analysis.generate_control_plot()
+        #analysis.generate_velocity_plot(include_vz=False)
         #analysis.generate_position_plot()
-        analysis.generate_euler_angle_plot()
+        #analysis.generate_euler_angle_plot()
         #analysis.generate_angular_velocity_plot()
         #analysis.generate_quat_norm_plot()
         #analysis.generate_angle_of_attack_plot()
         #analysis.generate_true_deflections_plot()
 
-        vv = VehicleVisualizer(self.vehicle, log)
-        vv.init_actors()
-        vv.add_grid()
-        vv.generate_square_traj()
-        vv.animate(cam_distance=140, zoom=1.5)
+        #vv = VehicleVisualizer(self.vehicle, log)
+        #vv.init_actors()
+        #vv.add_grid()
+        #vv.generate_square_traj()
+        #vv.animate(cam_distance=80, zoom=1.5)
 
 
 
 if __name__ == '__main__':
     # Create an instance of the entire Starship model
     starship = Starship()
+    #starship.save_buildup_figs()
 
     starship.run_sim()

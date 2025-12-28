@@ -132,8 +132,8 @@ class VehicleVisualizer:
             direction=(0, 0, 1),  # Normal vector, perpendicular to the XY plane
             i_size=2000,  # Width of the grid in X direction
             j_size=2000,  # Height of the grid in Y direction
-            i_resolution=20,  # Number of subdivisions along X
-            j_resolution=20  # Number of subdivisions along Y
+            i_resolution=10,  # Number of subdivisions along X
+            j_resolution=10  # Number of subdivisions along Y
         )
         # add grid to animation
         self.pl.add_mesh(grid, color="white", show_edges=True, edge_color="black")

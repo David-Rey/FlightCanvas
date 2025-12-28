@@ -156,16 +156,21 @@ class AeroComponent(ABC):
 
         # if component is main then use buildup manager, else use symmetric component buildup manager
         if self.is_prime:
-            F_b, M_b = self.buildup_manager.get_forces_and_moments(alpha, beta, speed, p, q, r)
+            F_c, M_c = self.buildup_manager.get_forces_and_moments(alpha, beta, speed, p, q, r)
+            F_b = R.T @ F_c
+            M_b = R.T @ M_c
         else:
             # if the component is reflected around xz plane then use get_forces_and_moment_xz_plane function
             if self.symmetry_type == 'xz-plane':
-                F_b, M_b = self.get_forces_and_moment_xz_plane(alpha, beta, speed, local_angular_rate)
+                F_b, M_b = self.get_forces_and_moment_xz_plane(alpha, beta, speed, local_angular_rate, T)
             # if the component is rotated around x-axis then use get_forces_and_moment_x_axial function
             elif self.symmetry_type == 'x-radial':
-                F_b, M_b = self.get_forces_and_moment_x_axial(v_comp, angular_rate)
+                F_b, M_b = self.get_forces_and_moment_x_axial(v_comp, angular_rate, T)
             else:
                 raise ValueError("self.symmetry_type needed to be either 'xz-plane' or 'x-radial'")
+
+        #F_b = R.T @ F_c
+        #M_b = R.T @ M_c
 
         # Compute moment arm
         M_b_cross = lib.cross(lever_arm, F_b)
@@ -179,7 +184,8 @@ class AeroComponent(ABC):
             alpha: Union[float, ca.MX],
             beta: Union[float, ca.MX],
             speed: Union[float, ca.MX],
-            angular_rate: Union[np.ndarray, ca.MX]
+            angular_rate: Union[np.ndarray, ca.MX],
+            T: Union[np.ndarray, ca.MX]
     ) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Returns the forces and moments reflected in the xz plane.
@@ -197,10 +203,20 @@ class AeroComponent(ABC):
             # Define a function to construct a vertical vector
             def vertcat_func(*args):
                 return ca.vertcat(*args)
+
+            #T = ca.MX(self.static_transform_matrix)
+            S = ca.diag(ca.MX([1, -1, 1]))
         else:
             # Define the NumPy equivalent for constructing a vector
             def vertcat_func(*args):
                 return np.array(args)
+            #T = self.static_transform_matrix
+            S = np.diag([1, -1, 1])
+
+        # Get rotation matrix from body frame to component frame
+        R = T[:3, :3]
+
+        R_eff = S @ R
 
         mirrored_beta = -beta
 
@@ -208,7 +224,7 @@ class AeroComponent(ABC):
         p, q, r = angular_rate[0], angular_rate[1], angular_rate[2]
         mirrored_angular_rate = vertcat_func(-p, q, -r)
 
-        F_b, M_b = self.symmetric_comp.buildup_manager.get_forces_and_moments(
+        F_c, M_c = self.symmetric_comp.buildup_manager.get_forces_and_moments(
             alpha,
             mirrored_beta,
             speed,
@@ -217,17 +233,28 @@ class AeroComponent(ABC):
             mirrored_angular_rate[2]
         )
 
-        F_b_mirrored = vertcat_func(F_b[0], -F_b[1], F_b[2])
+        #F_b_mirrored = vertcat_func(F_b[0], -F_b[1], F_b[2])
 
         # The rolling moment (l) and yawing moment (n) are inverted.
+        #M_b_mirrored = vertcat_func(-M_b[0], M_b[1], -M_b[2])
+
+        #F_b = R_eff.T @ F_b_mirrored
+        #M_b = R_eff.T @ M_b_mirrored
+
+        F_b = R_eff.T @ F_c
+        M_b = R_eff.T @ M_c
+
+        F_b_mirrored = vertcat_func(F_b[0], -F_b[1], F_b[2])
         M_b_mirrored = vertcat_func(-M_b[0], M_b[1], -M_b[2])
+
 
         return F_b_mirrored, M_b_mirrored
 
     def get_forces_and_moment_x_axial(
             self,
             v_comp: Union[np.ndarray, ca.MX],
-            angular_rate: Union[np.ndarray, ca.MX]
+            angular_rate: Union[np.ndarray, ca.MX],
+            T: Union[np.ndarray, ca.MX]
     ) -> Tuple[Union[np.ndarray, ca.MX], Union[np.ndarray, ca.MX]]:
         """
         Returns the forces and moments rotated from the component's local frame
@@ -238,10 +265,8 @@ class AeroComponent(ABC):
         """
         # Set up library-specific functions and variables
         if isinstance(v_comp, ca.MX):
-            T = ca.MX(self.static_transform_matrix)
             norm = ca.norm_2
         else:
-            T = self.static_transform_matrix
             norm = np.linalg.norm
 
         # Perform the calculation using the selected functions

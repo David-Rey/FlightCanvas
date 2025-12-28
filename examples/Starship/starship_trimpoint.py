@@ -209,6 +209,35 @@ class Trimpoint:
         control = nominal_control + pitch_control + lateral_control
         return control
 
+    def draw_wrench_space(self):
+        flap_limits = np.deg2rad([-20, 20])
+        num_points = 100
+        num_flaps = 4
+        flap_angles = np.linspace(flap_limits[0], flap_limits[1], num_points)
+
+        M = np.zeros((num_flaps, num_points, 3))
+        for i in range(num_flaps):
+            for j in range(num_points):
+                deflections = np.zeros(5)
+                deflections[i + 1] = flap_angles[j]
+                deflections = deflections + self.u_star
+                F_b, M_b = self.vehicle_dynamics.compute_forces_and_moments(self.x_star, deflections)
+                M[i, j, :] = M_b
+
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        for i in range(num_flaps):
+            Mx = M[i, :, 0]
+            My = M[i, :, 1]
+            Mz = M[i, :, 2]
+            ax.scatter(Mx, My, Mz)
+            ax.set_xlabel('Mx (roll)')
+            ax.set_ylabel('My (pitch)')
+            ax.set_zlabel('Mz (yaw)')
+
+        plt.show()
+
+
     def pitch_control_analysis(self):
         # 1. Define the Open-Loop System (G)
         C = np.array([[1, 0, 0, 0]])  # Note: ensure C is 2D for ss
