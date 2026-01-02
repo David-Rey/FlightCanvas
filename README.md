@@ -1,4 +1,8 @@
 
+## Starship Simulation
+
+[animation.mp4](examples%2FStarship%2Fanimation.mp4)
+
 ## The Physics
 
 Almost all dynamical systems can be written in the form of $\dot{\mathbf{x}}=f(\mathbf{x},\mathbf{u},t)$ and Starship is no exception. This formula is saying that the derivative of the state vector $\dot{\mathbf{x}}$ is a function of the current state $\mathbf{x}$, our control $\mathbf{u}$ and time $t$.
@@ -122,7 +126,7 @@ $$
 A = \left. \frac{\partial f}{\partial x} \right|_{x=x^*} \qquad B = \left. \frac{\partial f}{\partial u} \right|_{u=u^*}
 $$
 
-From the linearization, an LTI system can be derived as follows, where $\delta x = x - x^*$ and $\delta u = u - u^*$, and $x$ is the reduced state vector of length 4.
+From the linearization, an LTI system can be derived as follows.
 
 $$
 \delta \dot{x} = A \delta x+ B \delta u
