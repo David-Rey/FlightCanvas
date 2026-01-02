@@ -40,7 +40,7 @@ class Flight:
 
             control = trim.get_control(state)
             aero_vehicle_dyn = lambda state: self.aero_vehicle.dynamics(state, control)
-            
+
             # Add Noise into simulation
             noise_values = vnoiser.noise1(time) * 0.004
             state[11] = state[11] + noise_values
