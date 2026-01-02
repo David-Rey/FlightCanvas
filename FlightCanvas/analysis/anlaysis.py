@@ -91,9 +91,10 @@ class Analysis:
 
         # Plotting
         plt.figure(figsize=(10, 6))
+        plt.plot(time, euler[:, 1], label='Pitch (Y)')
         plt.plot(time, euler[:, 0], label='Yaw (Z)')
 
-        plt.plot(time, euler[:, 1], label='Pitch (Y)')
+
         #plt.plot(time, pitch, label='Pitch (Y)')
         plt.plot(time, euler[:, 2], label='Roll (X)')
 

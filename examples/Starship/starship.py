@@ -273,7 +273,7 @@ class Starship:
         log = Log(state_names, control_names, deflection_names, maxSteps)
 
         dt = 0.01
-        tf = 12
+        tf = 10
         flight = Flight(self.vehicle, tf, dt=dt)
 
         trim = Trimpoint(self.vehicle.vehicle_dynamics)
@@ -294,24 +294,24 @@ class Starship:
         inital_state[2] = 800
         inital_state[11] = 0.001
 
-        trim.draw_wrench_space()
+        #trim.draw_wrench_space()
         flight.run_sim(inital_state, trim, log)
 
         analysis = Analysis(log)
-        #analysis.generate_control_plot()
-        #analysis.generate_velocity_plot(include_vz=False)
+        analysis.generate_control_plot()
+        analysis.generate_velocity_plot(include_vz=False)
         #analysis.generate_position_plot()
-        #analysis.generate_euler_angle_plot()
-        #analysis.generate_angular_velocity_plot()
+        analysis.generate_euler_angle_plot()
+        analysis.generate_angular_velocity_plot()
         #analysis.generate_quat_norm_plot()
         #analysis.generate_angle_of_attack_plot()
         #analysis.generate_true_deflections_plot()
 
-        #vv = VehicleVisualizer(self.vehicle, log)
-        #vv.init_actors()
-        #vv.add_grid()
+        vv = VehicleVisualizer(self.vehicle, log)
+        vv.init_actors()
+        vv.add_grid()
         #vv.generate_square_traj()
-        #vv.animate(cam_distance=80, zoom=1.5)
+        vv.animate(cam_distance=80, zoom=1.5)
 
 
 

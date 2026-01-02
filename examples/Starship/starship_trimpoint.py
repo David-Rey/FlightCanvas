@@ -173,8 +173,8 @@ class Trimpoint:
         self.K_pitch, S, E = ct.lqr(self.A_pitch, self.B_pitch, Q, R)
 
     def init_LQR_lateral(self):
-        q_weights = [0, 0.01, 0.5, 0.01, 1]  #
-        r_weight = [1, 1]
+        q_weights = [0, 0.01, 0.01, 0.1, 0.1]  #
+        r_weight = [.01, 1]
 
         Q = np.diag(q_weights)
         R = np.diag(r_weight)
@@ -201,8 +201,8 @@ class Trimpoint:
         #lateral_error[3] = self.wrap_to_pi(lateral_error[3])
         #lateral_error[4] = self.wrap_to_pi(lateral_error[4])
         rel_lateral_control = self.K_lateral @ lateral_error
-        rel_lateral_control[0] = np.clip(rel_lateral_control[0], np.deg2rad(-2), np.deg2rad(2))
-        rel_lateral_control[1] = np.clip(rel_lateral_control[1], np.deg2rad(-2), np.deg2rad(2))
+        rel_lateral_control[0] = np.clip(rel_lateral_control[0], np.deg2rad(-4), np.deg2rad(4))
+        rel_lateral_control[1] = np.clip(rel_lateral_control[1], np.deg2rad(-4), np.deg2rad(4))
         lateral_control = np.array([0, rel_lateral_control[0], rel_lateral_control[1], 0])
 
         nominal_control = self.nominal_control()
@@ -210,7 +210,7 @@ class Trimpoint:
         return control
 
     def draw_wrench_space(self):
-        flap_limits = np.deg2rad([-20, 20])
+        flap_limits = np.deg2rad([0, 40])
         num_points = 100
         num_flaps = 4
         flap_angles = np.linspace(flap_limits[0], flap_limits[1], num_points)
@@ -220,7 +220,7 @@ class Trimpoint:
             for j in range(num_points):
                 deflections = np.zeros(5)
                 deflections[i + 1] = flap_angles[j]
-                deflections = deflections + self.u_star
+                deflections = deflections
                 F_b, M_b = self.vehicle_dynamics.compute_forces_and_moments(self.x_star, deflections)
                 M[i, j, :] = M_b
 
@@ -235,8 +235,14 @@ class Trimpoint:
             ax.set_ylabel('My (pitch)')
             ax.set_zlabel('Mz (yaw)')
 
-        plt.show()
+        fig = plt.figure()
+        ax = fig.add_subplot()
+        flap_num = 2
+        ax.plot(flap_angles, M[flap_num, :, 0])
+        ax.plot(flap_angles, M[flap_num, :, 1])
+        ax.plot(flap_angles, M[flap_num, :, 2])
 
+        plt.show()
 
     def pitch_control_analysis(self):
         # 1. Define the Open-Loop System (G)

@@ -169,9 +169,6 @@ class AeroComponent(ABC):
             else:
                 raise ValueError("self.symmetry_type needed to be either 'xz-plane' or 'x-radial'")
 
-        #F_b = R.T @ F_c
-        #M_b = R.T @ M_c
-
         # Compute moment arm
         M_b_cross = lib.cross(lever_arm, F_b)
 
@@ -247,7 +244,6 @@ class AeroComponent(ABC):
         F_b_mirrored = vertcat_func(F_b[0], -F_b[1], F_b[2])
         M_b_mirrored = vertcat_func(-M_b[0], M_b[1], -M_b[2])
 
-
         return F_b_mirrored, M_b_mirrored
 
     def get_forces_and_moment_x_axial(
@@ -261,6 +257,7 @@ class AeroComponent(ABC):
         to the body frame. Switches between NumPy and CasADi based on input type.
         :param v_comp: Velocity of the component (np.ndarray or ca.MX)
         :param angular_rate: Angular rate of the component (np.ndarray or ca.MX)
+        :param T: Transformation matrix from body to inertial
         :return: Forces and moments (np.ndarray or ca.MX)
         """
         # Set up library-specific functions and variables
