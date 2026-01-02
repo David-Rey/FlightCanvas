@@ -122,7 +122,7 @@ $$
 A = \left. \frac{\partial f}{\partial x} \right|_{x=x^*} \qquad B = \left. \frac{\partial f}{\partial u} \right|_{u=u^*}
 $$
 
-From the linearization a LTI system can be derived as the following where $\delta x = x - x^*$ and $\delta u = u - u^*$ where $x$ is the reduced state vector of length 4.
+From the linearization, an LTI system can be derived as follows, where $\delta x = x - x^*$ and $\delta u = u - u^*$, and $x$ is the reduced state vector of length 4.
 
 $$
 \delta \dot{x} = A \delta x+ B \delta u
