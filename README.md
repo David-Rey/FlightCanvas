@@ -1,7 +1,7 @@
 
 ## Starship Simulation
 
-[animation.mp4](examples%2FStarship%2Fanimation.mp4)
+https://github.com/user-attachments/assets/5259400a-4e0b-4d02-bbf7-d2e53ebda690
 
 ## The Physics
 
