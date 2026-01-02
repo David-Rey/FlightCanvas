@@ -1,5 +1,5 @@
 
-## The physics
+## The Physics
 
 Almost all dynamical systems can be written in the form of $\dot{\mathbf{x}}=f(\mathbf{x},\mathbf{u},t)$ and Starship is no exception. This formula is saying that the derivative of the state vector $\dot{\mathbf{x}}$ is a function of the current state $\mathbf{x}$, our control $\mathbf{u}$ and time $t$.
 
@@ -53,9 +53,12 @@ $$
 * $\mathbf{I}_b$ is the moment of inertia tensor in the body frame. Note that if the moment of inertia is dependent on the mass and CG location.
 * $\boldsymbol{\Omega}(w)$ is the skew-symmetric matrix representation of the angular velocity $\omega$.
 
-$$
-\boldsymbol{\Omega}(q) = \begin{bmatrix} 0 & -\omega_x & -\omega_y & -\omega_z \\ \omega_x & 0 & \omega_z & -\omega_y \\ \omega_y & -\omega_z & 0 & \omega_x \\ \omega_z & \omega_y & -\omega_x & 0 \end{bmatrix}
-$$
+$$\boldsymbol{\Omega}(q) = \begin{bmatrix} 
+0 & -\omega_x & -\omega_y & -\omega_z \\ 
+\omega_x & 0 & \omega_z & -\omega_y \\ 
+\omega_y & -\omega_z & 0 & \omega_x \\ 
+\omega_z & \omega_y & -\omega_x & 0 
+\end{bmatrix}$$
 
 If some of the math is a bit overwhelming then don't worry. All you need to know is that the state vector holds the data on position, velocity, orientation, and angular rate and all the fancy equations tell us how those states change given some external forces and moments.
 
@@ -116,10 +119,10 @@ $$
 Once a trim point is found the dynamics can be linearized around that point by calculating the Jacobian of the dynamics with respect to the state and control. The Jacobian can be calculated symbolically or using finite difference.
 
 $$
-A=\frac{\partial f}{\partial x}\Big\vert_{x=x^*} \qquad B=\frac{\partial f}{\partial u}\Big\vert_{u=u^*}
+A = \left. \frac{\partial f}{\partial x} \right|_{x=x^*} \qquad B = \left. \frac{\partial f}{\partial u} \right|_{u=u^*}
 $$
 
-From the linearization a LTI system can be derived as the following where ![](https://latex.codecogs.com/svg.image?\delta%20x=x-x^*)  and ![](https://latex.codecogs.com/svg.image?\delta%20u=u-u^*) where $x$ is the reduced state vector of length 4.
+From the linearization a LTI system can be derived as the following where $\delta x = x - x^*$ and $\delta u = u - u^*$ where $x$ is the reduced state vector of length 4.
 
 $$
 \delta \dot{x} = A \delta x+ B \delta u
