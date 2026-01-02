@@ -11,7 +11,7 @@ $$
     v_B \\
     q_{IB} \\
     \omega_B
-\end{bmatrix}" />
+\end{bmatrix}
 $$
 
 
@@ -24,22 +24,13 @@ where:
 The dynamics for starship (and any rigid body) are defined below
 
 
-<p align="center">
-  <img src="https://latex.codecogs.com/svg.image?\dot{p}_I=\mathbf{C}_{BI}v_B" />
-</p>
+$$\dot{p}_I=\mathbf{C}_{BI}v_B$$
 
-<p align="center">
-  <img src="https://latex.codecogs.com/svg.image?\dot{v}_B = \frac{F_b}{m} + \mathbf{C}_{IB}(q) g" />
-</p>
+$$\dot{v}_B = \frac{F_b}{m} + \mathbf{C}_{IB}(q) g$$
 
+$$\dot{q} = \frac{1}{2} \boldsymbol{\Omega}(\omega) q$$
 
-<p align="center">
-  <img src="https://latex.codecogs.com/svg.image?\dot{q} = \frac{1}{2} \boldsymbol{\Omega}(\omega) q" />
-</p>
-
-<p align="center">
-  <img src="https://latex.codecogs.com/svg.image?\dot{\omega} = \mathbf{I}_b^{-1} \left(M_b - \omega \times (\mathbf{I}_b \omega) \right)" />
-</p>
+$$?\dot{\omega} = \mathbf{I}_b^{-1} \left(M_b - \omega \times (\mathbf{I}_b \omega) \right)$$
 
 
 
@@ -50,21 +41,21 @@ where:
 * $g = [0, 0, -9.81]^T$ is the gravitational acceleration vector in the inertial frame.
 * ![](https://latex.codecogs.com/svg.image?{C}_{IB}) is the direction cosine matrix that transforms vectors from the inertial frame to the body frame (it is the transpose of ![](https://latex.codecogs.com/svg.image?{C}_{BI})).  ![](https://latex.codecogs.com/svg.image?{C}_{BI}={C}_{IB}^T)
 
-<p align="center">
-  <img src="https://latex.codecogs.com/svg.image?C_{IB}(q) =
+$$
+C_{IB}(q) =
 \begin{bmatrix}
 1 - 2(q_2^2 + q_3^2) & 2(q_1 q_2 + q_0 q_3) & 2(q_1 q_3 - q_0 q_2) \\
 2(q_1 q_2 - q_0 q_3) & 1 - 2(q_1^2 + q_3^2) & 2(q_2 q_3 + q_0 q_1) \\
 2(q_1 q_3 + q_0 q_2) & 2(q_2 q_3 - q_0 q_1) & 1 - 2(q_1^2 + q_2^2)
-\end{bmatrix}" />
-</p>
+\end{bmatrix}
+$$
 
 * $\mathbf{I}_b$ is the moment of inertia tensor in the body frame. Note that if the moment of inertia is dependent on the mass and CG location.
 * $\boldsymbol{\Omega}(w)$ is the skew-symmetric matrix representation of the angular velocity $\omega$.
 
-<p align="center">
-  <img src="https://latex.codecogs.com/svg.image?\boldsymbol{\Omega}(q) = \begin{bmatrix} 0 & -\omega_x & -\omega_y & -\omega_z \\ \omega_x & 0 & \omega_z & -\omega_y \\ \omega_y & -\omega_z & 0 & \omega_x \\ \omega_z & \omega_y & -\omega_x & 0 \end{bmatrix} " />
-</p>
+$$
+\boldsymbol{\Omega}(q) = \begin{bmatrix} 0 & -\omega_x & -\omega_y & -\omega_z \\ \omega_x & 0 & \omega_z & -\omega_y \\ \omega_y & -\omega_z & 0 & \omega_x \\ \omega_z & \omega_y & -\omega_x & 0 \end{bmatrix}
+$$
 
 If some of the math is a bit overwhelming then don't worry. All you need to know is that the state vector holds the data on position, velocity, orientation, and angular rate and all the fancy equations tell us how those states change given some external forces and moments.
 
@@ -78,15 +69,14 @@ Every aerodynamic component such as a wing or a fuselage has aerodynamic propert
 In order to control the system we must linearize the dynamics around an operating point and apply linear control, however how are we supposed to do that when Starship is falling at terminal velocity? The trick is that we don't linearize around the full 13 dimensional state vector. Rather we linearize around a reduced order model that only captures that thing we want to control, in this case pitch. So the state vector for pitch is as shown below. Where $x_4$ is a 4 dimensional state vector and $x_{13}$ is the full 13 dimensional state vector.
 
 
-<p align="center">
-  <img src="https://latex.codecogs.com/svg.image?\mathbf{x_4} = 
+$$\mathbf{x_4} = 
 \begin{bmatrix}
     u \\
     w \\
     q \\
     \theta
-\end{bmatrix}" />
-</p>
+\end{bmatrix}
+$$
 
 where:
 * $u$ is the x velocity in the body frame
@@ -102,8 +92,7 @@ $$
 
 In the formula $f$ is our dynamics defined above, $g$ is a function that takes in the full state vector and outputs the reduced state vector $x_4 = g(x_{13})$. The variables being optimized are $z$ which in this case are forward velocity ($u$) downward velocity ($w$) and pitch control. In order to convert pitch command to flap deflections an allocation matrix is used which is defined below.
 
-<p align="center">
-  <img src="https://latex.codecogs.com/svg.image?\begin{bmatrix}
+$$\begin{bmatrix}
     \delta_{fr} \\
     \delta_{fl} \\
     \delta_{br} \\
@@ -120,15 +109,15 @@ In the formula $f$ is our dynamics defined above, $g$ is a function that takes i
     u_{yaw} \\
     u_{roll} \\
     u_{drag}
-\end{bmatrix}" />
-</p>
+\end{bmatrix}
+$$
 
 
 Once a trim point is found the dynamics can be linearized around that point by calculating the Jacobian of the dynamics with respect to the state and control. The Jacobian can be calculated symbolically or using finite difference.
 
-<p align="center">
-  <img src="https://latex.codecogs.com/svg.image?A=\frac{\partial f}{\partial x}\Big\vert_{x=x^*} \qquad B=\frac{\partial f}{\partial u}\Big\vert_{u=u^*}" />
-</p>
+$$
+A=\frac{\partial f}{\partial x}\Big\vert_{x=x^*} \qquad B=\frac{\partial f}{\partial u}\Big\vert_{u=u^*}
+$$
 
 From the linearization a LTI system can be derived as the following where ![](https://latex.codecogs.com/svg.image?\delta%20x=x-x^*)  and ![](https://latex.codecogs.com/svg.image?\delta%20u=u-u^*) where $x$ is the reduced state vector of length 4.
 
